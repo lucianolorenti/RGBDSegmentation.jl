@@ -3,7 +3,14 @@ export RGBDImage,
     get_image,
     RGBDN,
     RGBDNImage,
-    LabelledRGBDNImage
+    RGBDNColorant,
+    LabelledRGBDNImage,
+    color_image,
+    z_image,
+    to_array,
+    to_rgbdnimage,
+    to_image,
+    rgb2lab!
 import Base.download
 using FITSIO
 using MAT
@@ -11,53 +18,66 @@ using PCL
 using ..RGBDSegmentation
 using ColorTypes
 using StaticArrays
-immutable RGBDN{T} <: Color{T, 9}
+using TypedDelegation   
+import Base: show, +,-,*,/,getindex, setindex!,zeros, zero
+import ColorTypes: comp1, comp2, comp3
+struct RGBDN{T} <: Colorant{T,9}
     data::SVector{9,T}
 end
-import Base: -, start, done, next, zero, /, + 
-
-function RGBDN{T}(a::RGBDN{T}) where T 
-    return RGBDN{T}(a.data)
+comp1(d::RGBDN{T}) where T = d[1]
+comp2(d::RGBDN{T}) where T = d[2]
+comp3(d::RGBDN{T}) where T = d[3]
+function zero(::Type{RGBDN{T}}) where T
+    return RGBDN{T}(zero(SVector{9,T}))
 end
-start(a::RGBDN) =  start(a.data)
-done(a::RGBDN, state) = done(a.data, state)
-next(a::RGBDN, state) = next(a.data, state)
-zero(::Type{RGBDN{T}}) where T<:Number = RGBDN{T}(SVector{9,T}(zeros(9)))
-/(d::RGBDN{T1}, a::T2) where T1<:Number where T2<:Number = RGBDN{T1}(d.data / a)
--(d1::RGBDN{T}, d2::T2) where T where T2<:Number =  RGBDN{T}(d1.data-d2)
--(d1::RGBDN{T}, d2::RGBDN{T}) where T = RGBDN{T}( d1.data - d2.data)
-+(d1::RGBDN{T}, d2::T2) where T where T2<:Number =  RGBDN{T}(d1.data + d2)
-+(d1::RGBDN{T}, d2::RGBDN{T}) where T = RGBDN{T}( d1.data + d2.data)
-import Base.show
-import Base.getindex
-function getindex(c::RGBDN, i::Integer)
-    return c.data[i]
-end
+@delegate_onefield(RGBDN, data, [getindex])
+@delegate_onefield_astype(RGBDN, data, [zeros,+, -, /,*])
+@delegate_onefield_twovars_astype( RGBDN, data, [ +,-,/, *] );
+import Images: accum
+accum(d::Type{RGBDN{T}}) where T = RGBDN{T}
 function show(io::IO, c::RGBDN)
     (r,g,b,x,y,z,nx,ny,nz) = (c.data...)
     print(io, "rgb: [$r, $g, $b] | xyz: [$x, $y, $z] | n: [$nx, $ny, $nz]")
 end
 const RGBDNImage{T} = Matrix{RGBDN{T}} where T<:Number
 const RGBDImage{T}  = Matrix{T} where T<:Number
-import Base.convert
-function convert(::Type{RGBDNImage}, m::Array{T,3} ) where T<:Number
-    (nr,nc,_) = size(m)
-    local img = RGBDNImage{T}(nr,nc)
-    @inbounds for r=1:nr
-        @inbounds for c=1:nc
-            @inbounds img[r,c] = RGBDN(SVector{9,T}(m[r,c,:]))
-        end
+
+
+function rgb2lab!(img::RGBDNImage{T}) where T
+    aimg = to_array(img)
+    for R in CartesianRange(size(img))
+        aimg[1:3,R[1],R[2]] = rgb2lab(img[R][1:3])
     end
-    return img
+end
+function to_array(img::RGBDNImage{T}) where T
+    return reinterpret(Float64, img, (9, size(img,1),size(img,2)))
+end
+function to_image(img::RGBDNImage{T}) where T
+    return reinterpret(RGBDNColorant{T}, img, (size(img)))
+end
+function to_rgbdnimage(img::Array{T,3}) where T
+    return reinterpret(RGBDN{T}, img, (size(img,2),size(img,3)))
+end
+function color_image(img::RGBDNImage)
+    local res = Matrix{RGB{Float32}}(size(img))
+    for I in CartesianRange(size(img))
+        res[I]=RGB((img[I][1:3])...)
+    end
+    return res
+end
+function z_image(img::RGBDNImage)
+    local res = Matrix{Float32}(size(img))
+    for I in CartesianRange(size(img))
+        res[I]=img[I][6]
+    end
+    return res
 end
 immutable LabelledRGBDNImage
     image::RGBDNImage
     labels::Matrix
 end
 function LabelledRGBDNImage(RGB::Array, D::Array, N::Array, labels::Matrix)
-    local  b= RGBDNImage(cat(3,RGB,D,N))
-    println(typeof(b))
-    return LabelledRGBDNImage(RGBDNImage(cat(3,RGB,D,N)), labels)
+    return LabelledRGBDNImage(to_rgbdnimage(permutedims(cat(3,RGB/255.0,D,N), [3 1 2])), labels)
 end
 
 function resize(img::RGBDImage, scale::Float64)
@@ -125,7 +145,7 @@ function get_image(ds::NYUDataset, i::Integer; compute_normals=false)
     end
     local margin = 15
     RGB = read(f[1]);
-    RGB = RGB[margin:end-margin, margin:end-margin,:];
+    RGB = RGB[margin:end-margin, margin:end-margin,:] ;
     D   = D[margin:end-margin, margin:end-margin, :];
     N   = N[margin:end-margin, margin:end-margin,:];
     S   = read(f[3])

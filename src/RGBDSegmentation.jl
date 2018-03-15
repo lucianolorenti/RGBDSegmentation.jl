@@ -8,4 +8,5 @@ include("Datasets/RGBDDataset.jl")
 include("Algorithms/JCSA/DepthWMM.jl")
 include("Algorithms/JCSA/JCSA.jl")
 include("Algorithms/RGBDNGraph/RGBDNGraph.jl")
+include("Algorithms/GCF/GCF.jl")
 end
