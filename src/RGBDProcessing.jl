@@ -1,97 +1,44 @@
-using PCL
 using StatsBase
+using LinearAlgebra
 export get_normal_image,
        get_normal_SVD,
        rgb2lab,
 	   rgb_plane2rgb_world,
        compute_local_planes
 
-"""
- Calibrated using the RGBDemo Calibration tool:
-   http://labs.manctl.com/rgbdemo/
-
-"""
-module CameraParams
-
-# The maximum depth used, in meters.
-maxDepth = 10;
-
-# RGB Intrinsic Parameters
-fx_rgb = 5.1885790117450188e+02;
-fy_rgb = 5.1946961112127485e+02;
-cx_rgb = 3.2558244941119034e+02;
-cy_rgb = 2.5373616633400465e+02;
-
-# RGB Distortion Parameters
-k1_rgb =  2.0796615318809061e-01;
-k2_rgb = -5.8613825163911781e-01;
-p1_rgb = 7.2231363135888329e-04;
-p2_rgb = 1.0479627195765181e-03;
-k3_rgb = 4.9856986684705107e-01;
-
-# Depth Intrinsic Parameters
-fx_d = 5.8262448167737955e+02;
-fy_d = 5.8269103270988637e+02;
-cx_d = 3.1304475870804731e+02;
-cy_d = 2.3844389626620386e+02;
-
-# RGB Distortion Parameters
-k1_d = -9.9897236553084481e-02;
-k2_d = 3.9065324602765344e-01;
-p1_d = 1.9290592870229277e-03;
-p2_d = -1.9422022475975055e-03;
-k3_d = -5.1031725053400578e-01;
-
-# Rotation
-R = -[ 9.9997798940829263e-01, 5.0518419386157446e-03,
-   4.3011152014118693e-03, -5.0359919480810989e-03,
-   9.9998051861143999e-01, -3.6879781309514218e-03,
-   -4.3196624923060242e-03, 3.6662365748484798e-03,
-   9.9998394948385538e-01 ];
-
-R = reshape(R, 3, 3);
-R = inv(R');
-
-# 3D Translation
-t_x = 2.5031875059141302e-02;
-t_z = -2.9342312935846411e-04;
-t_y = 6.6238747008330102e-04;
-
-# Parameters for making depth absolute.
-depthParam1 = 351.3;
-depthParam2 = 1092.5;
-
-end
 function  get_projection_mask()
-	mask = fill(false,480, 640);
-	mask[45:471, 41:601] = true;
-	sz = [427 561]
-	return mask,sz
+    mask = fill(false, 480, 640);
+    mask[45:471, 41:601] .= true;
+    sz = [427 561]
+    return mask,sz
 end
-function meshgrid(vx::AbstractVector{T}, vy::AbstractVector{T}) where T
-    m, n = length(vy), length(vx)
-    vx = reshape(vx, 1, n)
-    vy = reshape(vy, m, 1)
-    (repmat(vx, m, 1), repmat(vy, 1, n))
-end
-function rgb_plane2rgb_world(imgDepth)
-  (H, W) = size(imgDepth);
+"""
+ Projects the given depth image to world coordinates. Note that this 3D
+ coordinate space is defined by a horizontal plane made from the X and Z
+ axes and the Y axis points up.
 
-  (xx, yy) = meshgrid(1:W, 1:H);
+ Args:
+   imgDepthAbs - 480x640 depth image whose values indicate depth in
+                meters.
 
-  XYZ = zeros(Float32,H,W,3)
-  XYZ[:,:,1]  = (xx - CameraParams.cx_rgb) .* imgDepth / CameraParams.fx_rgb;
-  XYZ[:,:,2]  = (yy - CameraParams.cy_rgb) .* imgDepth / CameraParams.fy_rgb;
-  XYZ[:,:,3]  = imgDepth;
+ Returns:
+   points3d - Nx3 matrix of 3D world points (X,Y,Z).
 
-  return XYZ
+"""
+function depth_plane2depth_world(imgDepthAbs, c_d, f_d)
+    (H, W) = size(imgDepthAbs);
+    (xx,yy) = [x for x=1:W, y=1:H];
+    X = (xx - c_d[1]) .* imgDepthAbs / f_d[1];
+    Y = (yy - c_d[2]) .* imgDepthAbs / f_d[2];
+    Z = imgDepthAbs
+    return cat(X,Y,Z, dims=3)
 end
 """
 ```julia
-function    compute_local_planes(X, Y, Z, params)
+function compute_local_planes(X, Y, Z, params)
 ```
 
- Computes local surface normal information. Note that in this file, the Y
+ Computes surface normal information. Note that in this file, the Y
  coordinate points up, consistent with the image coordinate frame.
 
  Args:
@@ -105,7 +52,7 @@ function    compute_local_planes(X, Y, Z, params)
    - `imgNormals`. HxWx3 matrix of surface normals at each pixel.
    - `imgConfs`. HxW image of confidences.
 """
-function    compute_local_planes(XYZ;window::Integer=3, relDepthThresh::Float64 = 0.8)
+function compute_local_planes(XYZ;window::Integer=3, relDepthThresh::Float64 = 0.8)
     ( a , sz) = get_projection_mask()
     #H = sz[1];
     #W = sz[2];
@@ -116,90 +63,63 @@ function    compute_local_planes(XYZ;window::Integer=3, relDepthThresh::Float64 
     imgPlanes = zeros(Float32,H,W,4)
     imgConfs  = zeros(Float32,H,W)
 	imgNormals = zeros(Float32,H,W,3)
-    for pos in Base.CartesianRange((H,W))
-        r = pos[1]
-        c = pos[2]
-        local wc = max(c-window,1):min(c+window,W)
-        local wr = max(r-window,1):min(r+window,H)
-        local idxs = collect(Base.Iterators.filter.((n)->abs(XYZ[n[1],n[2],3] - XYZ[r,c,3]) < XYZ[r,c,3] * relDepthThresh, CartesianRange((wr,wc))))
-
+    for r=1:H, c=1:W
+        wc = max(c-window,1):min(c+window,W)
+        wr = max(r-window,1):min(r+window,H)
+        idxs = [(rwr, cwc)  for rwr in wr, cwc in wc
+                 if abs(XYZ[rwr,cwc,3] - XYZ[r, c, 3]) < XYZ[r,c,3] * relDepthThresh ]
         if length(idxs) < 3
-	        continue;
-		end
-		local A = ones(4,length(idxs))
-		local j = 1
-		for index in idxs
-		    A[1:3,j] = XYZ[index[1],index[2],:]
-			j=j+1
-		end
-    	(l, eigv) = eig(A*A');
-		v = eigv[:,1]
-		len = norm(v[1:3])
-		imgPlanes[r,c,:]= v ./ (len+eps())
-		imgNormals[r,c,:]=imgPlanes[r,c,1:3]
-		imgConfs[r,c] = 1 - sqrt(max(l[1],0) / l[2]);
-
+	    continue;
+	end
+	A = ones(4,length(idxs))
+	j = 1
+	for (rwr, rwc) in idxs
+	    A[1:3,j] = XYZ[rwr,rwc,:]
+	    j=j+1
+	end
+    	(l, eigv) = eigen(A*A');
+	v = eigv[:,1]
+	len = norm(v[1:3])
+	imgPlanes[r,c,:]= v ./ (len+eps())
+	imgNormals[r,c,:]=imgPlanes[r,c,1:3]
+	imgConfs[r,c] = 1 - sqrt(max(l[1],0) / l[2]);
     end
-    for pos in Base.CartesianRange((H,W))
-        local r =pos[1]
-        local c =pos[2]
+    for r=1:H, c=1:W
         if norm(imgNormals[r,c,:] - [0.0;0;0]) < 0.000001
-            local wc = max(c-window,1):min(c+window,W)
-	        local wr = max(r-window,1):min(r+window,H)
-            local  v = zeros(3)
-            for pos_w in Base.CartesianRange((wr,wc))
-                v=v+imgNormals[pos_w[1],pos_w[2],:]
+            wc = max(c-window,1):min(c+window,W)
+	    wr = max(r-window,1):min(r+window,H)
+            v = zeros(3)
+            for pos_wr in wr, pos_wc in wc
+                v=v+imgNormals[pos_wr,pos_wc,:]
             end
             v=v/norm(v)
             imgNormals[r,c,:]=v
         end
     end
-	return (imgPlanes, imgNormals, imgConfs)
+    return (imgPlanes, imgNormals, imgConfs)
 end
 
 function clean_normal_image(img)
     (z,nr,nc) = size(img)
-    for c = 1:nc
-        for r =1:nr
-            if  any(.!(isfinite.(img[:,r,c])))
-                wr = max(r-3,1):min(r+3,nr)
-                wc = max(c-3,1):min(c+3,nc)
-                imgw = img[:,wr,wc]
-                imgw_b = sum(!isfinite.(imgw),1)
-                cc = reshape(imgw_b,length(wr),length(wc))
-                bb =     find(cc.== 0)
-                (fs,cs) = ind2sub(size(cc),bb)
-                v = zeros(3)
-                for (i,j) in zip(fs,cs)
-                    v=v+imgw[:,i,j]
-                end
-                v=v/length(fs)
-                v=v/norm(v)
-                img[:,r,c]=v
-           end
+    for c = 1:nc, c=1:nr
+        if  any(.!(isfinite.(img[:,r,c])))
+            wr = max(r-3,1):min(r+3,nr)
+            wc = max(c-3,1):min(c+3,nc)
+            imgw = img[:,wr,wc]
+            imgw_b = sum(!isfinite.(imgw),1)
+            cc = reshape(imgw_b,length(wr),length(wc))
+            bb =     find(cc.== 0)
+            (fs,cs) = ind2sub(size(cc),bb)
+            v = zeros(3)
+            for (i,j) in zip(fs,cs)
+                v=v+imgw[:,i,j]
+            end
+            v=v/length(fs)
+            v=v/norm(v)
+            img[:,r,c]=v
         end
     end
-
     return img
-end
-"""
-```julia
-get_normal_image(R, ttype;  normalSmoothingSize=3, maxDepthChangeFactor=0.2)
-```
-Dada una imagen de rango `R`, el tipo de algoritmo utilizado para obtener la imagen con vectores normales `ttype` y un conjunto de parámetros almacenados la función devuelve una por cada pixel una aproximación al vector normal en ese punto.
-
-Los posibles tipos de `ttype` son `Covariance_Matrix`, `Average_3D_Gradient`, `Average_Depth_Change`
-"""
-function get_normal_image(R, ttype::PCL.IntegralImageNormalEstimationMethod ;  normalSmoothingSize=3.0, maxDepthChangeFactor=0.2)
-    local rectSize = round(Integer, 3)
-    local cfg  = IntegralImageNormalEstimation(ttype,
-                                         rectSize=[rectSize; rectSize],
-                                         depthDependentSmoothing=true,
-                                         normalSmoothingSize=normalSmoothingSize,
-                                         maxDepthChangeFactor=maxDepthChangeFactor)
-    local N =  PCL.compute_normals(cfg, R)
-    fill_normal!(N)
-    return N
 end
 """
 ```
@@ -208,28 +128,23 @@ function fill_normal(N::Array{T,3}; w::Integer=2) where T
 Fill the invalid values of a normal image with the mean direction of its vicinity of radius `w`
 """
 function fill_normal!(N::Array{T,3}; w::Integer=2) where T
-    local nanN = isnan.(N)
+    nanN = isnan.(N)
     nanN = nanN[:,:,1] .| nanN[:,:,2] .| nanN[:,:,3]
     invalid_r, invalid_c = ind2sub(size(nanN),find(nanN))
     for j=1:length(invalid_r)
-        local r=invalid_r[j]
-        local c=invalid_c[j]
-        local wr = max(r-w,1):min(r+w,size(nanN,1))
-        local wc = max(c-w,1):min(c+w,size(nanN,2))
-        local n  = zeros(3)
-        for npos in CartesianRange((wr,wc))
-            if all(.!(isnan.(N[npos[1],npos[2],:])))
-                n  = n + N[npos[1],npos[2],:]
+        r=invalid_r[j]
+        c=invalid_c[j]
+        wr = max(r-w,1):min(r+w,size(nanN,1))
+        wc = max(c-w,1):min(c+w,size(nanN,2))
+        n  = zeros(3)
+        for nposr=1:wr, nposc=1:wc
+            if all(.!(isnan.(N[nposr,nposc,:])))
+                n  = n + N[nposr,nposc,:]
             end
         end
         n = n /norm(n)
         N[r,c,:] = vec(n)
     end
-end
-function get_normal_image(R,ttype::PCL.IntegralImageNormalEstimationMethod , params::Dict{<:Any,<:Any})
-    normalSmoothingSize = params["normalSmoothingSize"]
-    maxDepthChangeFactor = params["maxDepthChangeFactor"]
-    return get_normal_image(R,ttype,  normalSmoothingSize=normalSmoothingSize, maxDepthChangeFactor=maxDepthChangeFactor)
 end
 function get_normal_SVD(R, w::Integer, th::Float64)
     nr = size(R,1)
@@ -297,9 +212,9 @@ function rgb2lab(RGB_image::Array{T,3}) where T
 """
 function  rgb2lab(RGB_image::Array{ElType,3}) where ElType
 
-    local B = float(RGB_image[:,:,3]);
-    local G = float(RGB_image[:,:,2]);
-    local R = float(RGB_image[:,:,1]);
+    B = float(RGB_image[:,:,3]);
+    G = float(RGB_image[:,:,2]);
+    R = float(RGB_image[:,:,1]);
     if ((maximum(R) > 1.0) | (maximum(G) > 1.0) | (maximum(B) > 1.0))
         R = R./255.0;
         G = G./255.0;
@@ -348,9 +263,9 @@ end
 
 """
 function rgb2lab(input_color::Vector)
-    local RGB = zeros(3)
+    RGB = zeros(3)
 	for num=1:3
-        local value = convert(Float64,input_color[num]) / 255.0
+        value = convert(Float64,input_color[num]) / 255.0
         if value > 0.04045
             value = ((value + 0.055) / 1.055) ^ 2.4
         else
@@ -370,7 +285,7 @@ function rgb2lab(input_color::Vector)
 
     num = 0
 	for num=1:3
-		local value = XYZ[num]
+		value = XYZ[num]
         if value > 0.008856
             value = value ^ (0.3333333333333333)
         else

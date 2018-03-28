@@ -41,22 +41,3 @@ Para escribir la gaussiana con la forma de la familia de exponenciales hay que d
 
 $$G_g(n) = -\frac{1}{2} \log (1 + \phi^T \Phi^{-1} \phi) - \frac{1}{2} log(\det(\Phi)) - \frac{d}{2} \log(2 \pi e ) $$
 
-# Ejemplo de uso
-```julia
-using RGBDSegmentation
-using FITSIO
-using SegmentationBenchmark
-using  PyPlot
-using Plots
-glvisualize()
-using Images
-using MAT
-import RGBDSegmentation:JCSA
-dataset = NYUDataset();
-img     = get_image(dataset,419, compute_normals= true);
-LAB     = rgb2lab(img.RGB);
-config  = JCSA.Config(max_iterations = 500);
-k       = 20;
-labels  = clusterize(config,LAB, img.depth, img.normals, k)
-imshow(labels)
-```

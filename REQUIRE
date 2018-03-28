@@ -1,3 +1,19 @@
-julia 0.6
+julia 1.0
 Distributions
-
+MLBase
+StatsBase
+FITSIO
+MAT
+ColorTypes
+StaticArrays
+Images
+Distances
+Clustering
+OffsetArrays
+LightGraphs
+ImageFiltering
+ImageSegmentation
+DataStructures
+Clustering
+SpectralClustering
+RemoteFiles

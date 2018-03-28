@@ -92,7 +92,6 @@ using FITSIO
 using TOFSegmentationBenchmark
 using SegmentationBenchmark
 using RGBDProcessing
-using Iterators
 using  PyPlot
 
 function swapDimensions(img)
@@ -121,7 +120,6 @@ if (length(f)==3)
 end
 N = read(f[4])
 close(f)
-using Iterators
 using DepthWMM
 nr=size(N,2)
 nc=size(N,3)

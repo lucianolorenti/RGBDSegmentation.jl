@@ -10,5 +10,7 @@ function sourceParameters()
 end
 function sourceVector()
 end
+function source_to_expectation()
+end
 include("WatsonDistribution.jl")
 include("MultivariateGaussian.jl")

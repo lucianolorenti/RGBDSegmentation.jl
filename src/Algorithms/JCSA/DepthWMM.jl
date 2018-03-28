@@ -1,5 +1,5 @@
 """
-UnsupervisedCluster:ta:ing of Depth Images using Watson Mixture Mode
+Unsupervised Clustetaring of Depth Images using Watson Mixture Mode
 Tesis Doctoral: https://tel.archives-ouvertes.fr/tel-01160770v2/document
 [Unsupervised Clustering of Depth Images Using Watson Mixture Model](http://ieeexplore.ieee.org/document/6976757/)
 """

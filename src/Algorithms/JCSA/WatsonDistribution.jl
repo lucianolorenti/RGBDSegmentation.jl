@@ -9,7 +9,7 @@ mutable struct MvWatson
     u::Vector{Float64}
     k::Float64
 end
-const SufficientStatistic{T} = Vector{T}
+const SufficientStatistic = Vector
 
 mutable struct MvWatsonExponential <: ExponentialFamily
     dim::Integer
@@ -20,26 +20,26 @@ mutable struct MvWatsonExponential <: ExponentialFamily
 end
 
 function MvWatsonExponential(n::Vector{Float64})
-    local dim = round(Int64,(-1+sqrt(1+(8*length(n))))/2)
-    local w   = MvWatsonExponential(dim, 1, n, Float64[],0)
+    dim = round(Int64,(-1+sqrt(1+(8*length(n))))/2)
+    w   = MvWatsonExponential(dim, 1, n, Float64[],0)
     update_parameters!(w)
     return w
 end
 """
-Apply Newton-Raphson method root finder  to approximate \$κ\$ from
-\$\vert \vert n \vert \vert_2\$ using the following iterative update iteration:
-\$k_{l+1} = k_l - \dfrac{q(a,c;k_l) - \vert \vert n \vert \vert_2}{q'(a,c,k_l)}\$
+Apply Newton-Raphson method root finder  to approximate ``κ`` from
+ ``\\vert \\vert n \\vert \\vert_2`` using the following iterative update iteration:
+ ``k_{l+1} = k_l - \\dfrac{q(a,c;k_l) - \\vert \\vert n \\vert \\vert_2}{q'(a,c,k_l)} ``
 
 """
 function estimate_concentration(dim::Integer, n::Vector{<:AbstractFloat}; tol::Float64 = 0.000001)
-    local a     = 0.5
-    local c     = (dim)/2
-    local r = norm(n)
-    local kappa_upper_bound = 500;
-    local k = 1.0
-    local diff = 100;
+    a     = 0.5
+    c     = (dim)/2
+    r = norm(n)
+    kappa_upper_bound = 500;
+    k = 1.0
+    diff = 100;
     ii=2;
-    local prevk = Inf
+    prevk = Inf
     while  abs(k - prevk) > tol && (k < kappa_upper_bound)
         prevk=k
         q = kummer_ratio(a,c,k, tol = eps()*2)
@@ -49,56 +49,56 @@ function estimate_concentration(dim::Integer, n::Vector{<:AbstractFloat}; tol::F
     return k
 end
 function update_parameters!(watson::MvWatsonExponential)
-    local d = dimension(watson)
+    d = dimension(watson)
     watson.concentration = estimate_concentration(d,watson.n);
-    local g_norm_theta = kummer_ratio(0.5,d/2, watson.concentration)
-    local R_norm_theta = g_norm_theta/ watson.concentration;
+    g_norm_theta = kummer_ratio(0.5,d/2, watson.concentration)
+    R_norm_theta = g_norm_theta/ watson.concentration;
     watson.theta = watson.n ./ R_norm_theta; # natural parameter
-    local  LNF = log(M(0.5, d/2, watson.concentration));# The log normalizing function
+     LNF = log(M(0.5, d/2, watson.concentration));# The log normalizing function
     watson.DLNF = dot(watson.theta, watson.n) - LNF; # Dual (expectation parameter) of the log normalizing function
 
 end
 function bregman_divergence(wmm::MvWatsonExponential, x::Vector)
-    local n     = wmm.n
-    local theta = wmm.theta
+    n     = wmm.n
+    theta = wmm.theta
     return  wmm.DLNF +  dot(x-n,theta)
 end
 """
 Computes the bregman divergence of every pattern located in the columns of x
 """
 function bregman_divergence(wmm::MvWatsonExponential, x::Matrix)
-    local n     = wmm.n
-    local theta = wmm.theta
-    res=  wmm.DLNF + theta'*(x.-n)
+    n = wmm.n
+    theta = wmm.theta
+    res =  wmm.DLNF .+ theta'*(x.-n)
     return res
 end
 function bregman_divergence(wmm1::MvWatsonExponential, wmm2::MvWatsonExponential)
-    local n1     = wmm1.n
-    local n2     = wmm2.n
-    local theta2 = wmm2.theta
-    return  wmm1.DLNF - wmm2.DLNF -   dot(n1-n2,theta2)
+    n1 = wmm1.n
+    n2 = wmm2.n
+    theta2 = wmm2.theta
+    return  wmm1.DLNF - wmm2.DLNF - dot(n1-n2,theta2)
 end
 
 function bregman_divergence(wmm1::MvWatson, wmm2::MvWatson)
     
-    local a     = 0.5
-    local c     = dimension(wmm1)/2
-    local theta1     = wmm1.k* sufficient_statistic(MvWatsonExponential, wmm1.u)
-    local theta2     = wmm2.k* sufficient_statistic(MvWatsonExponential, wmm2.u)
+    a     = 0.5
+    c     = dimension(wmm1)/2
+    theta1     = wmm1.k* sufficient_statistic(MvWatsonExponential, wmm1.u)
+    theta2     = wmm2.k* sufficient_statistic(MvWatsonExponential, wmm2.u)
     return  log(M(a,c,wmm1.k)) - log(M(a,c,wmm2.k)) - dot(theta1-theta2, kummer_ratio(a,c,wmm2.k)*(theta2/wmm2.k))
 end
 function sufficient_statistic_dimension(d::Integer)
     return round(Integer,d+ (d*(d-1))/2)
 end
 function MvWatsonExponential(dim::Integer)
-    local p = sufficient_statistic_dimension(dim)
+    p = sufficient_statistic_dimension(dim)
     return MvWatsonExponential(dim,0.0, zeros(p), zeros(p), 0.0)
 end
 function dimension(w::MvWatsonExponential)
     return w.dim
 end
 function sufficient_statistic(::Type{MvWatsonExponential}, d::Integer, n::Integer=1)
-    local p = sufficient_statistic_dimension(d)
+    p = sufficient_statistic_dimension(d)
     if n==1
 	return zeros(p)
     else
@@ -106,21 +106,33 @@ function sufficient_statistic(::Type{MvWatsonExponential}, d::Integer, n::Intege
     end
 end
 function sufficient_statistic(t::Type{MvWatsonExponential}, x::Vector{<:AbstractFloat})
-    local y = sufficient_statistic(t,length(x))
+    y = sufficient_statistic(t,length(x))
     sufficient_statistic!(t,y,x)
     return y
 end
+function sufficient_statistic(t::Type{MvWatsonExponential}, x::AbstractArray{<:Number,2})
+    y = zeros(
+        sufficient_statistic_dimension(size(x,1)),
+        size(x,2))
+    for i=1:size(x,2)
+        y[:, i] = sufficient_statistic(t,x[:, i])
+    end
+    return y
+end
+
 function sufficient_statistic(t::Type{MvWatsonExponential},  x::Array{<:AbstractFloat,3})
-    local y = zeros(sufficient_statistic_dimension(size(x,3)), size(x,1)*size(x,2))
-    local idx = 1
-    for i in CartesianRange((size(x,1),size(x,2)))
-        y[:,idx] = sufficient_statistic(t,  x[i[1],i[2],:])
-        idx+=1
+    y = zeros(
+        sufficient_statistic_dimension(size(x,1)),
+        size(x,2)*size(x,3))
+    idx = 1
+    for i=1:size(x,2), j=1:size(x,3)
+        y[:,idx] = sufficient_statistic(t,x[:, i ,j])
+        idx += 1
     end
     return y
 end
 function sufficient_statistic!(::Type{MvWatsonExponential}, y::Vector{<:AbstractFloat}, x::Vector{<:AbstractFloat})
-    y[1:length(x)] = x.^2
+    y[1:length(x)] .= x.^2
     r = length(x)+1
     for j=1:length(x)-1
         for i=j+1:length(x)
@@ -140,18 +152,18 @@ https://www.mathworks.com/matlabcentral/fileexchange/29766-confluent-hypergeomet
  Estimates the value by summing powers of the generalized hypergeometric
  series:
 
-      sum(n=0-->Inf)[(a)_n*x^n/{(b)_n*n!}
+ ``sum(n=0-->Inf)[(a)_n*x^n/{(b)_n*n!}``
 
  until the specified tolerance is acheived.
 
 """
-function M1{T<:AbstractFloat}(a::Float64, b::Float64, z::T; tol=0.00001)
-    local term = BigFloat((z*a)/b)
-    local f = BigFloat(1 + term)
-    local n = 1;
-    local an = a
-    local bn = b;
-    local nmin = 50;
+function M1(a::Float64, b::Float64, z::T; tol=0.00001) where T<:AbstractFloat
+    term = BigFloat((z*a)/b)
+    f = BigFloat(1 + term)
+    n = 1;
+    an = a
+    bn = b;
+    nmin = 50;
     while (n < nmin) || abs(term) > tol
         n = n + 1;
         an = an + 1;
@@ -165,8 +177,8 @@ function M1{T<:AbstractFloat}(a::Float64, b::Float64, z::T; tol=0.00001)
     end
     return Float64(f)
 end
-function kummer_ratio{T<:AbstractFloat}(a::Float64, c::Float64, x::T; tol::Float64=0.00001)
-    local val =  (a/c)*(M(a+1,c+1,x)/(M(a,c,x)))
+function kummer_ratio(a::Float64, c::Float64, x::T; tol::Float64=0.00001) where T<:AbstractFloat
+    val =  (a/c)*(M(a+1,c+1,x)/(M(a,c,x)))
     if isnan(val)
         return 1
     else
@@ -176,20 +188,20 @@ end
 import Distributions.pdf
 import Distributions.logpdf!
 function pdf(w::MvWatson,x::Vector{<:AbstractFloat})::Float64
-    local p = dimension(x)
+    p = dimension(x)
     return ((gamma(p/2)/(2*pi^(p/2)*M(0.5,p)/2,w.k)))*exp(w.k*(dot(w.u,x)^2))
 end
 function pdf(w::MvWatson, m::Matrix{<:AbstractFloat})
-    local p = dimension(w)
-    local c = ((gamma(p/2)/(2*pi^(p/2)*M(0.5,p)/2,w.k)))
+    p = dimension(w)
+    c = ((gamma(p/2)/(2*pi^(p/2)*M(0.5,p)/2,w.k)))
     return prod(c*exp.(w.k.*(w.u'*v).^2))
 end
-function logpdf!(output, w::MvWatson,data::Matrix)
-    local dim = size(data,1)
-    local coeff = log(1/M(0.5,dim/2,w.k))
-    output[1:end]=vec(coeff + w.k.*(data'*w.u).^2)
+function logpdf!(output, w::MvWatson, data::Matrix)
+    dim = size(data,2)
+    coeff = log(1/M(0.5,dim/2,w.k))
+    output .=vec(w.k.*(data'*w.u).^2 .+ coeff)
     ind = output.>700;
-    output[ind] = output[ind] - 1000;
+    output[ind] = output[ind] .- 1000;
 end
 
 function M(a,b,x)
@@ -239,8 +251,8 @@ function M(a,b,x)
 	la=floor(a)
 	a=a-la-1.0
     end
-    local y0 = 0
-    local y1 = 1
+    y0 = 0
+    y1 = 1
     
     for n=0:nl
 	if (a0 >= 2.0)
@@ -345,14 +357,14 @@ end
 Return the same dsitribution using the natural parameters
 """
 function  source_parameters(m::MvWatsonExponential)
-    local μ = source_vector(MvWatsonExponential, m.n)
+    μ = source_vector(MvWatsonExponential, m.n)
     return MvWatson(μ/norm(μ), m.concentration)
 end
 function source_vector(m::Type{MvWatsonExponential}, W::SufficientStatistic)
-    local dim = round(Int64,(-1+sqrt(1+(8*length(W))))/2)
-    local x_init = sqrt.(W[1:dim])
-    W       = W.>0
-    local x = x_init
+    dim = round(Int64,(-1+sqrt(1+(8*length(W))))/2)
+    x_init = sqrt.(W[1:dim])
+    W = W.>0
+    x = x_init
     if (W[4] & !W[5] & !W[6])
         x[3] = -x_init[3]
     elseif !W[4] && !W[5] & W[6]
@@ -385,7 +397,7 @@ function concentration(r::T1, c::T2, a::T3) where T1<:Number where T2<:Number wh
     end
 end
 function concentration(v::Vector, S::Matrix, c::Float64, a::Float64)
-    local r = v'*S*v
+    r = v'*S*v
     if (r<=0)
         r=eps()
     end
@@ -398,29 +410,29 @@ end
 
 import Distributions.loglikelihood
 function  loglikelihood(d::MvWatson, X::AbstractMatrix)
-    local n = size(X,2)
-    local p = size(X,1)
-    local S = StatsBase.scattermat_zm(X,2)/n
+    n = size(X,2)
+    p = size(X,1)
+    S = StatsBase.scattermat_zm(X,2)/n
     return loglikelihood_from_scatter(d, n, S)
 end
 function loglikelihood_from_scatter(d::MvWatson, n::Integer, S::AbstractMatrix)
-    local r = d.u'*S*d.u
-    local p = size(S,1)
+    r = d.u'*S*d.u
+    p = size(S,1)
     return n*(d.k*r - log(M(1/2, p/2, d.k)))
 end
 function fit_mle(m::Type{MvWatson}, X::Matrix)
-    local n = size(X,2)
-    local p = size(X,1)
-    local S = StatsBase.scattermat_zm(X,2)/n
-    local a = 1/2
-    local c = p/2
+    n = size(X,2)
+    p = size(X,1)
+    S = StatsBase.scattermat_zm(X,2)/n
+    a = 1/2
+    c = p/2
     
     (eval,evec) = eig(S)
-    local w_1 = MvWatson(evec[:,1], concentration(evec[:,1], S, c, a))
-    local w_2 = MvWatson(evec[:,3], concentration(evec[:,3], S, c, a))
+    w_1 = MvWatson(evec[:,1], concentration(evec[:,1], S, c, a))
+    w_2 = MvWatson(evec[:,3], concentration(evec[:,3], S, c, a))
     
-    local llh1 = loglikelihood_from_scatter(w_1, n, S)
-    local llh2 = loglikelihood_from_scatter(w_2, n, S)
+    llh1 = loglikelihood_from_scatter(w_1, n, S)
+    llh2 = loglikelihood_from_scatter(w_2, n, S)
     
     if (llh1 > llh2)
         return w_1

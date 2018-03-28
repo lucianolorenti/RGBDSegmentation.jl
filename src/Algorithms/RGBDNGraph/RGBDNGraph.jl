@@ -1,7 +1,7 @@
 #Pedro F Felzenszwalb and Daniel P Huttenlocher. Efficient graph-based image segmentation.International Journal of Computer Vision, 59(2):167–181, 2004
 # Aapted to use RGB
 module RGBDNGraph
-import RGBDSegmentation: RGBDNImage, RGBDN
+import RGBDSegmentation: CDNImage
 import ImageSegmentation: felzenszwalb, ImageEdge, meantype, SegmentedImage
 using DataStructures
 """
@@ -68,7 +68,7 @@ function felzenszwalb(edges::Array{ImageEdgeRGBDN}, num_vertices::Int, k::Real, 
 
     return index_map, num_sets
 end
-function felzenszwalb(img::RGBDNImage{T}, k::Real, edge_weight::Function, min_size::Int = 0) where T<:Real
+function felzenszwalb(img::CDNImage{T}, k::Real, edge_weight::Function, min_size::Int = 0) where T<:Real
 
     rows, cols = size(img)
     num_vertices = rows*cols
@@ -92,23 +92,23 @@ function felzenszwalb(img::RGBDNImage{T}, k::Real, edge_weight::Function, min_si
 
     result              = similar(img, Int)
     labels              = Array(1:num_segments)
-    region_means        = Dict{Int, meantype(RGBDN{T})}()
+    region_means        = Dict{Int, meantype(Vector{T})}()
     region_pix_count    = Dict{Int, Int}()
 
     for j in indices(img, 2)
         for i in indices(img, 1)
             result[i, j] = index_map[(j-1)*rows+i]
             region_pix_count[result[i,j]] = get(region_pix_count, result[i, j], 0) + 1
-            region_means[result[i,j]] = get(region_means, result[i,j], zero(meantype(RGBDN{T}))) + (img[i, j] - get(region_means, result[i,j], zero(meantype(RGBDN{T}))))/region_pix_count[result[i,j]]
+            region_means[result[i,j]] = get(region_means, result[i,j], zero(meantype(Vector{T}))) + (img[i, j] - get(region_means, result[i,j], zero(meantype(Vector{T}))))/region_pix_count[result[i,j]]
         end
     end
 
     return SegmentedImage(result, labels, region_means, region_pix_count)
 end
-function weight(a::RGBDN, b::RGBDN)
+function weight(a::Vector, b::Vector)
     return (norm(a[1:3]-b[1:3]),norm(a[4:6]-b[4:6]),acos(clamp(dot(a[7:9], b[7:9]),0,1)))
 end
-function felzenszwalb(img::RGBDNImage{T}, k::Real, min_size::Int=0) where T<:Real
+function felzenszwalb(img::CDNImage{T}, k::Real, min_size::Int=0) where T<:Real
     return felzenszwalb(img,k, weight, min_size)
 end
 struct Config
