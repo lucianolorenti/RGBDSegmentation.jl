@@ -54,7 +54,7 @@ function update_parameters!(watson::MvWatsonExponential)
     g_norm_theta = kummer_ratio(0.5,d/2, watson.concentration)
     R_norm_theta = g_norm_theta/ watson.concentration;
     watson.theta = watson.n ./ R_norm_theta; # natural parameter
-     LNF = log(M(0.5, d/2, watson.concentration));# The log normalizing function
+    LNF = log(M(0.5, d/2, watson.concentration));# The log normalizing function
     watson.DLNF = dot(watson.theta, watson.n) - LNF; # Dual (expectation parameter) of the log normalizing function
 
 end

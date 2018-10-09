@@ -22,13 +22,24 @@ function MvGaussianExponential(data::Matrix)
         gradG,
         G)
 end
+function sufficient_statistic(::Type{MvGaussianExponential}, x::Vector)
+    x1 = zeros(1,size(x,1))
+    x2 = zeros(1,1,size(x,1))
+    for i=1:size(x,2)
+        v = x[i]
+        x2[1,1,i] = -v*v'
+        x1[1,i] = v
+    end
+    return (x1, x2)
+end
+
 function sufficient_statistic(::Type{MvGaussianExponential}, x::AbstractArray{<:Number,2})
     x1 = zeros(size(x,1), size(x,2))
     x2 = zeros(size(x,1), size(x,1), size(x,2))
     for i=1:size(x,2)
-        v = vec(x[:, i])
-        x2[:, :, i] = -v*v'
-        x1[:, i]  = v
+        v = vec(x[:,i])
+        x2[:,:,i] = -v*v'
+        x1[:,i]  = v
     end
     return (x1, x2)
 end
@@ -45,7 +56,6 @@ end
 
 function compute_G(n::Vector, H::Matrix)
     d = size(n, 1)
-    display(H)
     invH = inv(H)
     G =  -0.5 * real(log(Complex(1.0001+ n'*invH*n))) -
         0.5*log(det(-H)+eps()) -
@@ -61,7 +71,7 @@ From expectation parameters to natural parameters
 """
 function update_parameters!(g::MvGaussianExponential)
     d = dimension(g)
-    (G, gradG) = compute_g(g.n[0], g.n[1])
+    (G, gradG) = compute_G(g.n[1], g.n[2])
     g.G = G
     g.gradG = gradG
 end

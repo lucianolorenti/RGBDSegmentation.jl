@@ -1,21 +1,32 @@
 #Pedro F Felzenszwalb and Daniel P Huttenlocher. Efficient graph-based image segmentation.International Journal of Computer Vision, 59(2):167–181, 2004
-# Aapted to use RGB
-module RGBDNGraph
-import RGBDSegmentation: CDNImage
-import ImageSegmentation: felzenszwalb, ImageEdge, meantype, SegmentedImage
+# Adapted to use RGB
+module CDNGraph
+export config
+import RGBDSegmentation:
+    CDNImage,
+    clusterize,
+    CDNSegmentedImage
+import ImageSegmentation:
+    felzenszwalb,
+    ImageEdge,
+    meantype,
+    SegmentedImage,
+    _colon
+using LinearAlgebra
 using DataStructures
+
 """
     edge = ImageEdge(index1, index2, weight)
 Construct an edge in a Region Adjacency Graph. `index1` and `index2` are the integers corresponding to individual pixels/voxels (in the sense of linear indexing via `sub2ind`), and `weight` is the edge weight (measures the dissimilarity between pixels/voxels).
 """
-struct ImageEdgeRGBDN
+struct ImageEdgeCDN
     index1::Int
     index2::Int
     weightRGB::Float64
     weightXYZ::Float64
     weightN::Float64
 end
-function felzenszwalb(edges::Array{ImageEdgeRGBDN}, num_vertices::Int, k::Real, min_size::Int = 0)
+function felzenszwalb(edges::Array{ImageEdgeCDN}, num_vertices::Int, k::Real, min_size::Int = 0)
 
     num_edges = length(edges)
     G = IntDisjointSets(num_vertices)
@@ -57,11 +68,11 @@ function felzenszwalb(edges::Array{ImageEdgeRGBDN}, num_vertices::Int, k::Real, 
 
     num_sets = length(segments)
     segments2index = Dict{Int, Int}()
-    for i in 1:num_sets
-        segments2index[segments[i]]=i
+    for (i, s) in enumerate(segments)
+        segments2index[s]=i
     end
 
-    index_map = Array{Int}(num_vertices)
+    index_map = Array{Integer}(undef, num_vertices)
     for i in 1:num_vertices
         index_map[i] = segments2index[find_root(G, i)]
     end
@@ -69,48 +80,52 @@ function felzenszwalb(edges::Array{ImageEdgeRGBDN}, num_vertices::Int, k::Real, 
     return index_map, num_sets
 end
 function felzenszwalb(img::CDNImage{T}, k::Real, edge_weight::Function, min_size::Int = 0) where T<:Real
-
-    rows, cols = size(img)
+    _, rows, cols = size(img)
     num_vertices = rows*cols
     num_edges = 4*rows*cols - 3*rows - 3*cols + 2
-    edges = Array{ImageEdgeRGBDN}(num_edges)
+    edges = Array{ImageEdgeCDN}(undef, num_edges)
 
-    R = CartesianRange(size(img))
+    R = CartesianIndices((size(img,2),size(img,3)))
     I1, Iend = first(R), last(R)
     num = 1
     for I in R
-        for J in CartesianRange(max(I1, I-I1), min(Iend, I+I1))
+        for J in CartesianIndices(_colon(max(I1, I-I1), min(Iend, I+I1)))
             if I >= J
                 continue
             end
-            edges[num] = ImageEdgeRGBDN((I[2]-1)*rows+I[1], (J[2]-1)*rows+J[1], edge_weight(img[I],img[J])...)
+            edges[num] = ImageEdgeCDN(
+                (I[2]-1)*rows+I[1],
+                (J[2]-1)*rows+J[1],
+                edge_weight(img[:,I[1],I[2]],img[:,J[1],J[2]])...)
             num += 1
         end
     end
 
     index_map, num_segments = felzenszwalb(edges, num_vertices, k, min_size)
 
-    result              = similar(img, Int)
+    result              = zeros(Integer, (size(img,2),size(img,3)))
     labels              = Array(1:num_segments)
-    region_means        = Dict{Int, meantype(Vector{T})}()
+    region_means        = Dict{Int, Vector{Float64}}()
     region_pix_count    = Dict{Int, Int}()
-
-    for j in indices(img, 2)
-        for i in indices(img, 1)
-            result[i, j] = index_map[(j-1)*rows+i]
-            region_pix_count[result[i,j]] = get(region_pix_count, result[i, j], 0) + 1
-            region_means[result[i,j]] = get(region_means, result[i,j], zero(meantype(Vector{T}))) + (img[i, j] - get(region_means, result[i,j], zero(meantype(Vector{T}))))/region_pix_count[result[i,j]]
-        end
+    z = zeros(9)
+    for j=1:size(img, 3), i=1:size(img, 2)
+        result[i, j] = index_map[(j-1)*rows+i]
+        region_pix_count[result[i,j]] = get(region_pix_count, result[i, j], 0) + 1
+        region_means[result[i,j]] = get(region_means, result[i,j], z) + (img[:,i, j] - get(region_means, result[i,j], z))/region_pix_count[result[i,j]]
     end
 
-    return SegmentedImage(result, labels, region_means, region_pix_count)
+    return CDNSegmentedImage(result, labels, region_means, region_pix_count)
 end
 function weight(a::Vector, b::Vector)
     return (norm(a[1:3]-b[1:3]),norm(a[4:6]-b[4:6]),acos(clamp(dot(a[7:9], b[7:9]),0,1)))
 end
-function felzenszwalb(img::CDNImage{T}, k::Real, min_size::Int=0) where T<:Real
+function felzenszwalb(img::CDNImage, k::Real, min_size::Int=0)
     return felzenszwalb(img,k, weight, min_size)
 end
 struct Config
+   min_size::Integer
+end
+function clusterize(cfg::Config, img::CDNImage, k::Integer) 
+    return felzenszwalb(img, k, cfg.min_size)
 end
 end

@@ -9,8 +9,6 @@ using LightGraphs
 using ImageSegmentation
 include("ExponentialDistributions.jl")
 include("combined_kmeans.jl")
-import RGBDSegmentation: rgb_plane2rgb_world
-import RGBDSegmentation:clusterize
 import RGBDSegmentation: clusterize,
     CDNImage,
     to_array,
@@ -91,7 +89,7 @@ function Model(k::Integer)
 ```
 Construct a JCSA Model composed by a mixture of `k` components. Each component is a product of two multivariate gaussian and a multivariate watson distribution
 """
-function Model(initial_assignments, xss)
+function Model(initial_assignments::Vector, xss::CDNData)
     (_, n) = size(xss.color[1])
     weights = []
     components = []
@@ -101,7 +99,7 @@ function Model(initial_assignments, xss)
             MvGaussianExponential(
                 xss.color[1][:, cluster]),
             MvGaussianExponential(
-                xss.depth[1][:,cluster]),
+                xss.depth[1][:, findall(cluster)]),
             MvWatsonExponential(
                 vec(mean(xss.normal[1][:,cluster],dims=2)))
         ))
@@ -218,10 +216,10 @@ function update_parameters!(m::Model, pij)
    #= Threads.@threads=# for i=1:k
        try
            for j=1:3
-               println(j)
                update_parameters!(m.components[i][j])
            end
        catch e
+           throw(e)
 	   lock(invalid_component_lock)
            push!(components_to_remove, i)
            @warn("Component removed $e")
@@ -265,7 +263,6 @@ function clusterize(cfg::Config, img::CDNImage, k::Integer)
     (model, pij, extended_data) = expectation_maximization(cfg, img, k)
     k = length(model.components)
     labels = hard_clustering(pij, k, (size(img,2), size(img,3)))
-    return labels
     rm_config = RegionMergingConfig()
 
     return process_labels(rm_config,
@@ -292,15 +289,21 @@ function expectation_maximization(cfg::Config,
     iteration = 1
     prev_pij = nothing
     DG = zeros(k,3,npatterns)
-    current_nll = 0
-    #while iteration<cfg.max_iterations && current_nll<prev_nll
-    for i=1:50
+    current_nll = Inf
+    best_nll = Inf
+    while iteration < 15 || (iteration<cfg.max_iterations && current_nll<prev_nll)
         expectation(pij, DG, model, xss)
         maximization(model,pij,xss )
 	update_parameters!(model, pij)
         prev_nll    = current_nll
         current_nll = negative_log_likelihood(model, p_data)
-        println("Iteracion: $iteration | Mejora NLL: $(prev_nll - current_nll)")
+        if current_nll < best_nll
+            best_nll = current_nll
+        end
+        @info """Iteration: $iteration 
+              | Current improvement NLL: $(prev_nll - current_nll)
+              | Best: $best_nll
+              """
         iteration = iteration + 1
     end
    return (model,pij, xss)

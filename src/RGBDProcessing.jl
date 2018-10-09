@@ -27,9 +27,8 @@ end
 """
 function depth_plane2depth_world(imgDepthAbs, c_d, f_d)
     (H, W) = size(imgDepthAbs);
-    (xx,yy) = [x for x=1:W, y=1:H];
-    X = (xx - c_d[1]) .* imgDepthAbs / f_d[1];
-    Y = (yy - c_d[2]) .* imgDepthAbs / f_d[2];
+    X = (collect(1:W)' .- c_d[1]) .* imgDepthAbs / f_d[1];
+    Y = (collect(1:H) .- c_d[2]) .* imgDepthAbs / f_d[2];
     Z = imgDepthAbs
     return cat(X,Y,Z, dims=3)
 end

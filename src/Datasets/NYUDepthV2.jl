@@ -43,6 +43,7 @@ function preprocess(ds::NYUDataset, n::Integer=0)
     end
     mkpath(transformed_path(ds))
     for j=1:n
+        @info "Preprocessing image $j of $n"
         t_file_path = transformed_file_path(ds, j)
         if !isfile(t_file_path)
             f = FITS(t_file_path, "w");
