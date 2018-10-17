@@ -4,65 +4,93 @@ Fusion of Geometry and Color Information for Scene Segmentation
 module GCF
 export Config
 
-
-import RGBDSegmentation:
-    clusterize, CDNImage,to_array, rgb2lab!, FRCRGBD, evaluate, color_image, z_image
+using Statistics
 using RGBDSegmentation
 using Images
+using ImageSegmentationEvaluation
+using ImageSegmentation
+import RGBDSegmentation:
+    clusterize,
+    CDNImage,
+    rgb2lab!,
+    colors,
+    distances,
+    number_of_pixels
 struct Config
     nev::Integer
-    r::Integer
     lambdas
     proportion_of_pixels::Float64
+    function Config(; nev::Integer=5,
+                    lambdas::Array=[0.3,0.4],
+                    proportion_of_pixels::Float64=0.001)
+        if proportion_of_pixels <0 || proportion_of_pixels >1
+            throw("Invalid Proportion")
+        end
+        return new(nev, lambdas, proportion_of_pixels)
+    end
 end
-
 using Clustering
 using SpectralClustering
 using Distances
 
-function weight(i::Integer,j::Vector{<:Integer},pixel_i, neighbors_data)
-    local dist_p = Distances.colwise(SqEuclidean(),pixel_i[1:3], neighbors_data[1:3,:])    
-    local dist_c = Distances.colwise(SqEuclidean(),pixel_i[4:6], neighbors_data[4:6,:])
-    local v =  exp.(-dist_p./(2*mean(dist_p))) .* exp.(-dist_c./(2*mean(dist_c)))
-    return v
+function weight(i::Integer,
+                j::Vector{<:Integer},
+                pixel_i,
+                neighbors_data)
+    dist = Distances.colwise(SqEuclidean(),
+                             pixel_i[3:8],
+                             neighbors_data[3:8, :])
+ 
+    return exp.(-(dist))
 end
-function clusterize(cfg::Config, img_a::CDNImage, k::Integer)
-    rgb2lab!(img_a)
-    local lab_image = color_image(img_a)
-    local d_image = z_image(img_a)
-    local best_clus = []
-    local cluster_resu = []
-    local best_perf    = -Inf
-    local curr_perf    = -5000
-    local lambda       = 0.05
-    for lambda=cfg.lambdas
-        println(lambda, " ",curr_perf, " ",best_perf)
-        local img           = copy(img_a)
-        local img_array     = to_array(img)
-        local stds          = vec(std(img_array,2:3))
-#        img_array[:,:,1:3] *= (3/sum(stds[1:3]))
-#        img_array[:,:,4:6] *= lambda*(3/sum(stds[4:6]))
-        local n_of_pixels   = size(img,1)*size(img,2)
-        local n_of_samples  = round(Int,n_of_pixels * cfg.proportion_of_pixels)
-        local knnconfig     = PixelNeighborhood(cfg.r)
-        local nystrom       = NystromMethod(
+function process_labels(labels::SegmentedImage, min_size=350)
+    deletion_rule = i -> segment_pixel_count(labels, i) < min_size
+    replacement_rule = (i, j) -> -segment_pixel_count(labels, j)
+    return prune_segments(labels, deletion_rule, replacement_rule)
+end
+function clusterize(cfg::Config, img::CDNImage, k::Integer)
+    n_of_pixels = number_of_pixels(img)
+    best_clus = []
+    cluster_resu = []
+    best_perf = -Inf
+    curr_perf = -5000
+    for lambda in cfg.lambdas
+        @info "$lambda $curr_perf $best_perf"
+        n_of_samples = round(Int,
+                             n_of_pixels * cfg.proportion_of_pixels)
+        img_a = copy(img)
+        rgb2lab!(img_a)
+        std_per_dimension = dropdims(std(img_a, dims=[2,3]), dims=(2,3))
+        img_a[1:3, :, :] .*= 3/(sum(std_per_dimension[1:3]))
+        img_a[4:6, :, :] .*= lambda*(3/(sum(std_per_dimension[4:6])))
+
+        nystrom = NystromMethod(
             EvenlySpacedLandmarkSelection(),            
             n_of_samples,       
             weight,
             cfg.nev,
-            true    )
+            true)
+        cluster_resu = SpectralClustering.clusterize(
+            nystrom,
+            KMeansClusterizer(k),
+            img_a)
 
-        cluster_resu = SpectralClustering.clusterize(nystrom,KMeansClusterizer(7),img)
+        labels = Images.label_components(
+            reshape(
+                assignments(cluster_resu),
+                (size(img_a, 2), size(img_a, 3))))
         
-        local labels    = Images.label_components(reshape(assignments(cluster_resu),size(img_a)))
-        labels = round.(Integer,mapwindow(median!, labels, (3,3)))
-        gc()
-        curr_perf = RGBDSegmentation.evaluate(FRCRGBD(), lab_image, d_image, labels[:])
+        segmented_image = SegmentedImage(img, labels)
+        labels = process_labels(segmented_image)
+        curr_perf = ImageSegmentationEvaluation.evaluate(
+            FRCRGBD(),
+            colors(img_a),
+            z(img_a),
+            labels)
         if (curr_perf > best_perf)
             best_perf = curr_perf
-            best_clus = cluster_resu
+            best_clus = segmented_image
         end
-        gc()
     end
     return best_clus
 end

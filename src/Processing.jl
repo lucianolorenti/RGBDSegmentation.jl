@@ -1,10 +1,12 @@
 using StatsBase
 using LinearAlgebra
+using Images
 export get_normal_image,
-       get_normal_SVD,
-       rgb2lab,
-	   rgb_plane2rgb_world,
-       compute_local_planes
+    get_normal_SVD,
+    rgb2lab,
+    rgb_plane2rgb_world,
+    compute_local_planes,
+    resize
 
 function  get_projection_mask()
     mask = fill(false, 480, 640);
@@ -263,7 +265,7 @@ end
 """
 function rgb2lab(input_color::Vector)
     RGB = zeros(3)
-	for num=1:3
+    for num=1:3
         value = convert(Float64,input_color[num]) / 255.0
         if value > 0.04045
             value = ((value + 0.055) / 1.055) ^ 2.4
@@ -271,7 +273,7 @@ function rgb2lab(input_color::Vector)
             value = value / 12.92
 		end
         RGB[num] = value * 100
-	end
+    end
     XYZ = zeros(3)
     XYZ[1] = RGB[1] * 0.4124 + RGB[2] * 0.3576 + RGB[3] * 0.1805
     XYZ[2] = RGB[1] * 0.2126 + RGB[2] * 0.7152 + RGB[3] * 0.0722
@@ -303,3 +305,24 @@ function rgb2lab(input_color::Vector)
     Lab[3] = b
 	return Lab
 end
+function rgb2lab!(img::CDNImage{T}) where T
+    for r=1:size(img,2), c=1:size(img,3)
+        img[1:3,r,c] = rgb2lab(img[1:3,r,c])
+    end
+end
+function resize(img::CDNImage, scale::Float64)
+    dim = (3,
+           round(Integer, size(distances(img), 2) * scale),
+           round(Integer, size(distances(img), 3) * scale))
+    RGB = imresize(colors(img), dim)
+    D = imresize(distances(img), dim)
+    N = imresize(normals(img), dim)
+    return CDNImage(RGB,D,N)
+end
+function resize(img::LabelledCDNImage, scale::Float64)
+    resized_img = resize(img.image, scale)
+    return LabelledCDNImage(
+        resized_img,
+        img.labels)
+end
+ 

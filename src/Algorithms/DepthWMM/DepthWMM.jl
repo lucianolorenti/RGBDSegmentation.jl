@@ -8,8 +8,8 @@ export WatsonMixtureModel,
       clusterize
 
 include("DiametricalClustering.jl")
-include("ExponentialDistributions.jl")
-using Distributions
+include("../JCSA/ExponentialDistributions.jl")
+#using Distributions
 using Clustering
 
 mutable struct WatsonMixtureModel

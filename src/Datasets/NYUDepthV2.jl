@@ -32,7 +32,7 @@ function transformed_file_path(ds::NYUDataset, j::Integer)
 end   
 function preprocess(ds::NYUDataset, n::Integer=0)
     c_params = camera_params(ds)
-    file = matopen(realpath(raw_file(ds)))
+    file = matopen(raw_file(ds))
     RGB = read(file,"images")
     depths = read(file,"depths")
     labels = read(file,"labels")

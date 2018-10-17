@@ -1,5 +1,4 @@
 module JCSA
-using ..DepthWMM
 import Base.getindex
 import Base.setindex!
 import Base.length
@@ -11,13 +10,7 @@ include("ExponentialDistributions.jl")
 include("combined_kmeans.jl")
 import RGBDSegmentation: clusterize,
     CDNImage,
-    to_array,
-    CDNN,
     rgb2lab!,
-    FRCCDN,
-    evaluate,
-    color_image,
-    z_image,
     colors,
     distances,
     normals
@@ -309,3 +302,4 @@ function expectation_maximization(cfg::Config,
    return (model,pij, xss)
 end
 end
+
