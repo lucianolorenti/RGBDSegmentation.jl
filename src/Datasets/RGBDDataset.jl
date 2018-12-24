@@ -1,4 +1,6 @@
-export NYUDataset,
+export 
+    RGBDDataset,
+    NYUDataset,
     get_image,
     CDN,
     CDNImage,
@@ -14,7 +16,8 @@ export NYUDataset,
     colors,
     distances,
     normals,
-    z
+    z,
+    name
 import Base.download
 using FITSIO
 using MAT
@@ -24,6 +27,8 @@ using StaticArrays
 import Base: show, +,-,*,/,getindex, setindex!,zeros, zero
 import ColorTypes: comp1, comp2, comp3
 import Images: accum
+
+abstract type RGBDDataset end
 
 const CDNImage{T} = Array{T, 3} where T<:Number
 @enum ImageType Color=1 Depth=2 Normal=3

@@ -212,7 +212,6 @@ function update_parameters!(m::Model, pij)
                update_parameters!(m.components[i][j])
            end
        catch e
-           throw(e)
 	   lock(invalid_component_lock)
            push!(components_to_remove, i)
            @warn("Component removed $e")
@@ -258,11 +257,12 @@ function clusterize(cfg::Config, img::CDNImage, k::Integer)
     labels = hard_clustering(pij, k, (size(img,2), size(img,3)))
     rm_config = RegionMergingConfig()
 
-    return process_labels(rm_config,
-                          colors(img),
-                          distances(img),
-                          labels,
-                          extended_data)
+    labels = process_labels(rm_config,
+                            colors(img),
+                            distances(img),
+                            labels,
+                            extended_data)
+    return SegmentedImage(img, labels)
 end
 function expectation_maximization(cfg::Config,
                                   img::CDNImage,

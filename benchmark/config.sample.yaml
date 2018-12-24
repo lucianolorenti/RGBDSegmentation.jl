@@ -1,0 +1,15 @@
+JCSA:
+    max_iterations: 500
+
+GCF:
+    nev: 5
+    lambdas: [0.0001, 0.001, 0.01, 0.1]
+    proportion_of_pixels: 0.01
+
+CDNGraph:
+    min_size: 200
+
+image_scale: 0.5
+number_of_segments: 50
+data_path: '/home/luciano/results'
+dataset: 'NYU'

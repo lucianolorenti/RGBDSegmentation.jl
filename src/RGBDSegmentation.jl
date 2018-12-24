@@ -2,6 +2,7 @@ module RGBDSegmentation
 using ColorTypes
 using Statistics
 using LinearAlgebra
+using StaticArrays
 export clusterize
 abstract type RGBDSegmentationAlgorithm end
 import ImageSegmentation:
@@ -13,19 +14,20 @@ include("Processing.jl")
 
 import ImageSegmentation.SegmentedImage
 struct ColorDistanceNormalElement{T <: AbstractFloat }<: Colorant{T, 9}
-    color:: Vector{T}
-    distance:: Vector{T}
-    normal:: Vector{T}
+    color::SVector{3, T}
+    distance::SVector{3,T}
+    normal::SVector{3, T}
 end
+
 import Base.zero
 import Base.show
 import Base.+
 import Base.- 
 function zero(c::Type{ColorDistanceNormalElement})
     return ColorDistanceNormalElement(
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0])
+        zeros(SVector{3}),
+        zeros(SVector{3}),
+        zeros(SVector{3}))
 end
 function show(io::IO, elem::ColorDistanceNormalElement)
     show(io, elem.color)
@@ -56,12 +58,25 @@ function /(v1::ColorDistanceNormalElement, v::Integer)
         v1.distance / v,
         n)
 end
-
+import Images.channelview
+import Images.colorview
+function channelview(img::Array{ColorDistanceNormalElement{T}, 2}) where T
+    return reshape(reinterpret(T,  img), (9, size(img)...))
+end
+function colorview(::Type{RGB}, img::Array{ColorDistanceNormalElement{T}, 2}) where T
+    return colorview(RGB, @view channelview(img)[1:3, :, :])
+end
+function colors(img::Array{ColorDistanceNormalElement, 2})
+    colors = zeros(3, size(img)...)
+    for I in CartesianIndices(size(img))
+        colors[:,I] .= img[I].color
+    end
+    return colors
+end    
 function SegmentedImage(img::CDNImage, labels::Matrix)
-    label_list = sort(unique(labels))
-    region_means        = Dict{Int, ColorDistanceNormalElement}()
-    region_pix_count    = Dict{Int, Int}() 
-
+    label_list = convert.(Integer, sort(unique(labels)))
+    region_means = Dict{Int, ColorDistanceNormalElement}()
+    region_pix_count = Dict{Int, Int}() 
     for label in label_list
         segment = findall(labels .== label)
         region_pix_count[label] = length(segment)
@@ -70,11 +85,9 @@ function SegmentedImage(img::CDNImage, labels::Matrix)
         mean_normal = sum(img[7:9, segment], dims=2)
         mean_normal = vec(mean_normal / norm(mean_normal))
         region_means[label] = ColorDistanceNormalElement(
-            mean_color,
-            mean_dist,
-            mean_normal)
-        
-        
+            SVector{3,Float64}(mean_color...),
+            SVector{3,Float64}(mean_dist...),
+            SVector{3,Float64}(mean_normal...))
     end
     return SegmentedImage(labels,
                           label_list,

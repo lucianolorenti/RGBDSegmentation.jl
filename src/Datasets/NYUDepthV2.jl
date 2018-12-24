@@ -2,13 +2,24 @@ using RemoteFiles
 """
 http://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html
 """
-struct NYUDataset
+struct NYUDataset <: RGBDDataset
     path::String
 end
 function NYUDataset()
     return NYUDataset(joinpath(dirname(pathof(RGBDSegmentation)), "..", "datasets", "NYU"))
 end
 import Base.length
+import Base.iterate
+function iterate(s::NYUDataset, state=1)
+    if (state > length(s))
+        return nothing
+    else
+        return (get_image(s, state), state + 1)
+    end
+end
+function name(s::NYUDataset)
+    return "NYU"
+end
 function length(s::NYUDataset)
     return 1449
 end

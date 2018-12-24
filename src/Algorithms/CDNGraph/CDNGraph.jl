@@ -103,18 +103,11 @@ function felzenszwalb(img::CDNImage{T}, k::Real, edge_weight::Function, min_size
 
     index_map, num_segments = felzenszwalb(edges, num_vertices, k, min_size)
 
-    result              = zeros(Integer, (size(img,2),size(img,3)))
-    labels              = Array(1:num_segments)
-    region_means        = Dict{Int, Vector{Float64}}()
-    region_pix_count    = Dict{Int, Int}()
-    z = zeros(9)
+    labels = zeros(Integer, (size(img,2),size(img,3)))
     for j=1:size(img, 3), i=1:size(img, 2)
-        result[i, j] = index_map[(j-1)*rows+i]
-        region_pix_count[result[i,j]] = get(region_pix_count, result[i, j], 0) + 1
-        region_means[result[i,j]] = get(region_means, result[i,j], z) + (img[:,i, j] - get(region_means, result[i,j], z))/region_pix_count[result[i,j]]
+       labels[i, j] = index_map[(j-1)*rows+i]
     end
-
-    return CDNSegmentedImage(result, labels, region_means, region_pix_count)
+    return SegmentedImage(img, labels)
 end
 function weight(a::Vector, b::Vector)
     return (norm(a[1:3]-b[1:3]),norm(a[4:6]-b[4:6]),acos(clamp(dot(a[7:9], b[7:9]),0,1)))
@@ -124,6 +117,9 @@ function felzenszwalb(img::CDNImage, k::Real, min_size::Int=0)
 end
 struct Config
    min_size::Integer
+end
+function Config(;min_size::Integer)
+    return Config(min_size)
 end
 function clusterize(cfg::Config, img::CDNImage, k::Integer) 
     return felzenszwalb(img, k, cfg.min_size)
