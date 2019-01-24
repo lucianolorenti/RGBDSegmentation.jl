@@ -95,7 +95,7 @@ function initial_clusters(p_data::Array{T, 2},
 	end
 	indices_invalid_centroid = vec(findall(isnan.(centroids)))
     	if (!isempty(indices_invalid_centroid))
-	    tindices = ind2sub(size(centroids),indices_invalid_centroid)[3]
+            tindices = CartesianIndices(centroids, indices_invalid_centroid)[3]
             centroids = centroids[:,:,setdiff(1:k, tindices)]
 	    k = k-length(tindices);
 	end
