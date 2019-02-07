@@ -44,10 +44,8 @@ function segment(config)
     K = config["number_of_segments"]
     data_path = config["data_path"]
     image_scale = config["image_scale"]
-    for (i, image) in enumerate(dataset)
-        @info("Resizing image to 50%")
- 
-        image = resize(image, image_scale)
+    for i=1:length(dataset)
+        image = nothing
         for algo_name in keys(algorithms)
             algorithm_cfg = algorithms[algo_name]
             algorithm = get_or_insert(
@@ -69,6 +67,12 @@ function segment(config)
             if exists(segmented_image, conn, exclude=[:metrics])
                 @info("Segmentation already stored")
                 continue
+            end
+            if image == nothing
+                @info "Loading image $i"
+                image = dataset[i]
+                @info("Resizing image to 50%")
+                image = resize(image, image_scale)
             end
             @info("Segmenting image $i with algorithm $algorithm")
             time = @elapsed (
