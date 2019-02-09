@@ -80,7 +80,6 @@ end
 
 function exists(seg::SegmentedImage, conn; exclude::Array{Symbol}=[])
     do_exists = invoke(exists, Tuple{DBTable, Any}, seg, conn;exclude=exclude)
-
     if ! do_exists
         return do_exists
     else

@@ -46,7 +46,6 @@ function segment(config)
     image_scale = config["image_scale"]
     for (i, image) in enumerate(dataset)
         @info("Resizing image to 50%")
- 
         image = resize(image, image_scale)
         for algo_name in keys(algorithms)
             algorithm_cfg = algorithms[algo_name]
@@ -65,7 +64,7 @@ function segment(config)
                 image=i,
                 file_path=file_path,
                 algorithm=algorithm)
-
+            
             if exists(segmented_image, conn, exclude=[:metrics])
                 @info("Segmentation already stored")
                 continue

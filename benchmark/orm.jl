@@ -41,7 +41,7 @@ function get_id(d::T, conn; exclude::Array{Symbol}=Symbol[])  where T<:DBTable
     end
 end
 function exists(d::T, conn; exclude::Array{Symbol}=Symbol[]) where T <:DBTable
-    return get_id(d, conn, exclude=exclude) == nothing
+    return get_id(d, conn, exclude=exclude) != nothing
 end
 
 function create_table_sql(d)
