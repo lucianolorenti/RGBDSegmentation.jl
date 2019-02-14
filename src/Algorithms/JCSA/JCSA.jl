@@ -86,16 +86,20 @@ function Model(initial_assignments::Vector, xss::CDNData)
     (_, n) = size(xss.color[1])
     weights = []
     components = []
-    for  cluster in initial_assignments
-        push!(weights, length(cluster)/n)
-        push!(components, (
-            MvGaussianExponential(
-                xss.color[1][:, cluster]),
-            MvGaussianExponential(
-                xss.depth[1][:, findall(cluster)]),
-            MvWatsonExponential(
-                vec(mean(xss.normal[1][:,cluster],dims=2)))
-        ))
+    for cluster in initial_assignments
+        try 
+            push!(components, (
+                MvGaussianExponential(
+                    xss.color[1][:, cluster]),
+                MvGaussianExponential(
+                    xss.depth[1][:, findall(cluster)]),
+                MvWatsonExponential(
+                    vec(mean(xss.normal[1][:,cluster],dims=2)))
+            ))
+            push!(weights, length(cluster)/n)
+        catch e
+            @info "Model construction $e"
+        end
     end
     return Model(weights, components)
 end
