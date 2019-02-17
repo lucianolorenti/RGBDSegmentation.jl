@@ -1,4 +1,10 @@
 include("orm.jl")
+using JLD
+using Images
+using FileIO
+import FileIO: load,
+               save
+using StaticArrays
 mutable struct Algorithm <: DBTable
     id::Union{Integer, Nothing}
     name::String
@@ -17,6 +23,24 @@ mutable struct SegmentedImage <: DBTable
     file_path::String
     algorithm::Union{Algorithm, Integer}
     metrics::Dict
+end
+function save(segmented_image::SegmentedImage, img, segments, conn)
+    insert(segmented_image, conn)
+    img = map(i->segment_mean(segments, i), labels_map(segments))
+    @info("Saving jld file")
+    save(string(segmented_image.file_path, ".jld"),
+         "segments", segments)       
+
+    @info("Saving png file")
+    save(string(segmented_image.file_path, ".png"),
+         colorview(RGB, img))
+    @info("Checking that the file can be read")
+    s = load(string(segmented_image.file_path, ".jld"))
+
+ 
+end
+function load(s::SegmentedImage)
+    return load(string(s.file_path, ".jld"))
 end
 function SegmentedImage(;
                         id::Union{Integer, Nothing}=nothing,

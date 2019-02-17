@@ -96,7 +96,7 @@ function initial_clusters(p_data::Array{T, 2},
 	indices_invalid_centroid = unique([id[2] for id in vec(findall(isnan.(centroids)))])
     	if (!isempty(indices_invalid_centroid))
             centroids = centroids[:, setdiff(1:k, indices_invalid_centroid)]
-	    k = k - length(tindices);
+	    k = k - length(indices_invalid_centroid);
 	end
 	diff = abs(value - oldvalue);
     end

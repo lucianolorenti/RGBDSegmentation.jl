@@ -81,10 +81,16 @@ function insert(d::DBTable, conn)
     d.id = data.id[1]
     return d
 end
-function get_or_insert(d::DBTable, conn)
+get(d::DBTable, conn) = get_or_insert(d, conn, false)
+function get_or_insert(d::DBTable, conn, insert_if_not_present=true)
     id = get_id(d, conn)
     if id == nothing
-        insert(d, conn)
+        if insert_if_not_present
+            insert(d, conn)
+        else
+            throw(Exception("$d not present"))
+        end
+        
     else
         d.id = id
     end

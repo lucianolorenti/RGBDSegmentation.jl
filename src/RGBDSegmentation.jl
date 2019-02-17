@@ -3,6 +3,7 @@ using ColorTypes
 using Statistics
 using LinearAlgebra
 using StaticArrays
+using JLD
 export clusterize
 abstract type RGBDSegmentationAlgorithm end
 import ImageSegmentation:
@@ -17,6 +18,9 @@ struct ColorDistanceNormalElement{T <: AbstractFloat }<: Colorant{T, 9}
     color::SVector{3, T}
     distance::SVector{3,T}
     normal::SVector{3, T}
+end
+struct ColorDistanceNormalSerializer{T <: AbstractFloat}
+    data::Vector{T}
 end
 
 import Base.zero
@@ -72,7 +76,22 @@ function colors(img::Array{ColorDistanceNormalElement, 2})
         colors[:,I] .= img[I].color
     end
     return colors
-end    
+end
+
+
+function JLD.readas(serdata::ColorDistanceNormalSerializer)
+    return ColorDistanceNormalElement(
+        SVector{3}(serdata.data[1:3]),
+        SVector{3}(serdata.data[4:6]),
+        SVector{3}(serdata.data[7:9]))
+end
+function JLD.writeas(data::ColorDistanceNormalElement)
+    return ColorDistanceNormalSerializer(
+        Vector(vcat(data.color, data.distance, data.normal))
+    )
+end
+
+
 function SegmentedImage(img::CDNImage, labels::Matrix)
     label_list = convert.(Integer, sort(unique(labels)))
     region_means = Dict{Int, ColorDistanceNormalElement}()
