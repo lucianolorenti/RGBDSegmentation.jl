@@ -141,12 +141,6 @@ function parse_commandline()
         Dict(:help=>"Evaluate segmented image",
          :action=>:command)
     )
-
-    add_arg_table(
-        s["segment"],
-        "--output-folder",
-        Dict(:required=>true))
-
                   
     return parse_args(ARGS, s)
 end

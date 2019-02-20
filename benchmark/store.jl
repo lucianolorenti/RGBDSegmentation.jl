@@ -40,7 +40,10 @@ function save(segmented_image::SegmentedImage, img, segments, conn)
  
 end
 function load(s::SegmentedImage)
-    return load(string(s.file_path, ".jld"))
+    file_path = string(s.file_path, ".jld")
+    @info("Opening file $file_path")
+    loaded_file = load(file_path)
+    return loaded_file["segments"]
 end
 function SegmentedImage(;
                         id::Union{Integer, Nothing}=nothing,
