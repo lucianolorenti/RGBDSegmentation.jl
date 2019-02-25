@@ -18,25 +18,36 @@ typedict(x) = Dict(fn=>getfield(x, fn)
 
 include("store.jl")
 
-function unsupervised_metrics(img, segmented_image::SegmentedImage)
+function unsupervised_metrics(img, segmented_image::ImageSegmentation.SegmentedImage)
     default_params = Dict("ECW" => Dict(
                                    :threshold=>0.5),
                           )
     params = default_params
 
-    metrics = Dict("ECW" => ECW(;params["ECW"]...),
-                   "Zeboudj" => Zeboudj(),
+    RGB_img = colors(img.image)
+    segmented_image_RGB = ImageSegmentation.SegmentedImage(
+        segmented_image.image_indexmap,
+        segmented_image.segment_labels,
+        Dict(k => RGB(rm.color...) for (k, rm) in segmented_image.segment_means),
+        segmented_image.segment_pixel_count)
+    D   = distances(img.image)
+    N   = normals(img.image)
+    
+    metrics_color = Dict("ECW" => ECW(;params["ECW"]...),
+                   "Zeboudj" => Zeboudj(radius=5),
                    "ValuesEntropy" => ValuesEntropy(),
                    "LiuYangF" =>  LiuYangF(),
                    "FPrime" => FPrime(),
-                   "ErdemMethod" => ErdemMethod(5, 5),
+                   #"ErdemMethod" => ErdemMethod(5, 5),
                    "Q" => Q())
     result = Dict()
-    for metric_name in sort(collect(keys(metrics)))
-        result[metric_name] = evaluate(metrics[metric_name],
-                                       img,
-                                       segmented_image)
+    for metric_name in sort(collect(keys(metrics_color)))
+        result[metric_name] = ImageSegmentationEvaluation.evaluate(
+            metrics_color[metric_name],
+            RGB_img,
+            segmented_image_RGB)
     end
+    print(result)
     return result               
 end
 

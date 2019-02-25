@@ -13,7 +13,6 @@ import ImageSegmentation:
 include("Datasets/RGBDDataset.jl")
 include("Processing.jl")
 
-import ImageSegmentation.SegmentedImage
 struct ColorDistanceNormalElement{T <: AbstractFloat }<: Colorant{T, 9}
     color::SVector{3, T}
     distance::SVector{3,T}
@@ -90,7 +89,6 @@ function JLD.writeas(data::ColorDistanceNormalElement)
         Vector(vcat(data.color, data.distance, data.normal))
     )
 end
-
 
 function SegmentedImage(img::CDNImage, labels::Matrix)
     label_list = convert.(Integer, sort(unique(labels)))

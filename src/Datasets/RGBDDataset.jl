@@ -52,7 +52,7 @@ function number_of_pixels(img::CDNImage)
     return size(img,2)*size(img,3)
 end
 function colors(img::CDNImage)
-    return img[1:3, :, :]
+    return colorview(RGB, img[1:3, :, :])
 end
 function distances(img::CDNImage)
     return img[4:6, :, :]

@@ -285,15 +285,15 @@ function rgb2lab(input_color::Vector)
     XYZ[3] = XYZ[3] / 108.883        # ref_Z = 108.883
 
     num = 0
-	for num=1:3
-		value = XYZ[num]
+    for num=1:3
+	value = XYZ[num]
         if value > 0.008856
             value = value ^ (0.3333333333333333)
         else
             value = (7.787 * value) + (16 / 116.0)
-		end
-        XYZ[num] = value
 	end
+        XYZ[num] = value
+    end
     Lab = zeros(3)
 
     L = (116 * XYZ[2]) - 16
@@ -303,7 +303,7 @@ function rgb2lab(input_color::Vector)
     Lab[1] = L
     Lab[2] = a
     Lab[3] = b
-	return Lab
+    return Lab
 end
 function rgb2lab!(img::CDNImage{T}) where T
     for r=1:size(img,2), c=1:size(img,3)
@@ -311,12 +311,11 @@ function rgb2lab!(img::CDNImage{T}) where T
     end
 end
 function resize(img::CDNImage, scale::Float64)
-    dim = (3,
-           round(Integer, size(distances(img), 2) * scale),
+    dim = (round(Integer, size(distances(img), 2) * scale),
            round(Integer, size(distances(img), 3) * scale))
-    RGB = imresize(colors(img), dim)
-    D = imresize(distances(img), dim)
-    N = imresize(normals(img), dim)
+    RGB = Array(channelview(imresize(colors(img), dim)))
+    D = imresize(distances(img), (3, dim...))
+    N = imresize(normals(img), (3, dim...))
     return CDNImage(RGB,D,N)
 end
 function resize(img::LabelledCDNImage, scale::Float64)
