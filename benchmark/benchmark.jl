@@ -33,13 +33,17 @@ function unsupervised_metrics(img, segmented_image::ImageSegmentation.SegmentedI
     D   = distances(img.image)
     N   = normals(img.image)
     
-    metrics_color = Dict("ECW" => ECW(;params["ECW"]...),
-                   "Zeboudj" => Zeboudj(radius=5),
-                   "ValuesEntropy" => ValuesEntropy(),
-                   "LiuYangF" =>  LiuYangF(),
-                   "FPrime" => FPrime(),
-                   #"ErdemMethod" => ErdemMethod(5, 5),
-                   "Q" => Q())
+    metrics_color = Dict(
+        "ECW" => ECW(;params["ECW"]...),
+        "Zeboudj" => Zeboudj(radius=5),
+        "ValuesEntropy" => ValuesEntropy(),
+        "LiuYangF" =>  LiuYangF(),
+        "FPrime" => FPrime(),
+        #"ErdemMethod" => ErdemMethod(5, 5),
+        "Q" => Q())
+    metrics_color_distance = Dict(
+        "FRCRGBD" => FRCRGBD())
+    
     result = Dict()
     for metric_name in sort(collect(keys(metrics_color)))
         result[metric_name] = ImageSegmentationEvaluation.evaluate(
@@ -47,7 +51,14 @@ function unsupervised_metrics(img, segmented_image::ImageSegmentation.SegmentedI
             RGB_img,
             segmented_image_RGB)
     end
-    print(result)
+    
+    for metric_name in sort(collect(keys(metrics_color_distance)))
+        result[metric_name] = ImageSegmentationEvaluation.evaluate(
+            metrics_color_distance[metric_name],
+            RGB_img,
+            D,
+            segmented_image) 
+    end
     return result               
 end
 
