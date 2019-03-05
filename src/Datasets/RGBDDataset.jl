@@ -65,8 +65,15 @@ function normals(img::CDNImage)
 end
 struct LabelledCDNImage
     image::CDNImage
-    labels::Matrix
+    ground_truth::SegmentedImage
 end
+function LabelledCDNImage(image::CDNImage, labels::AbstractArray{T}) where T<:Integer
+    return LabelledCDNImage(image,
+                            SegmentedImage(image, labels))
+end
+
+                                                                             
+
 
 
 

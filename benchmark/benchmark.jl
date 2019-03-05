@@ -18,6 +18,18 @@ typedict(x) = Dict(fn=>getfield(x, fn)
 
 include("store.jl")
 
+function supervised_metrics(img, segmented_image::ImageSegmentation.SegmentedImage)
+    metrics = Dict(
+            "FBoundary" => FBoundary())
+    result = Dict()
+    for metric_name in sort(collect(keys(metrics)))
+        result[metric_name] = ImageSegmentationEvaluation.evaluate(
+            metrics[metric_name],
+            segmented_image,
+            img.ground_truth)
+    end
+
+end
 function unsupervised_metrics(img, segmented_image::ImageSegmentation.SegmentedImage)
     default_params = Dict("ECW" => Dict(
                                    :threshold=>0.5),
@@ -43,6 +55,7 @@ function unsupervised_metrics(img, segmented_image::ImageSegmentation.SegmentedI
         "Q" => Q())
     metrics_color_distance = Dict(
         "FRCRGBD" => FRCRGBD())
+
     
     result = Dict()
     for metric_name in sort(collect(keys(metrics_color)))
@@ -56,7 +69,7 @@ function unsupervised_metrics(img, segmented_image::ImageSegmentation.SegmentedI
         result[metric_name] = ImageSegmentationEvaluation.evaluate(
             metrics_color_distance[metric_name],
             RGB_img,
-            D,
+            D[3, :, :],
             segmented_image) 
     end
     return result               
@@ -143,6 +156,7 @@ function evaluate(config)
     image_scale = config["image_scale"]
     for i=1:length(dataset)
         image = nothing
+        segmented_image = nothing
         for algo_name in keys(algorithms)
             algorithm_cfg = algorithms[algo_name]
             algorithm = get(
@@ -155,7 +169,7 @@ function evaluate(config)
             file_path = joinpath(data_path, algo_name)
             mkpath(file_path)
             file_path = joinpath(file_path, base_filename)
-            segmented_image = SegmentedImage(
+            segmented_image_db = SegmentedImage(
                 dataset=name(dataset),
                 image=i,
                 file_path=file_path,
@@ -165,8 +179,11 @@ function evaluate(config)
                 image = dataset[i]
                 @info("Resizing image to 50%")
                 image = resize(image, image_scale)
+                segmented_image = load(segmented_image_db)
             end
-            unsupervised_metrics(image, load(segmented_image))
+            #unsupervised_metrics(image, load(segmented_image))
+            supervised_metrics(image, segmented_image)
+            
         end
     end
 end

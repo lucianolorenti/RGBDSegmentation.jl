@@ -1,6 +1,7 @@
 using StatsBase
 using LinearAlgebra
 using Images
+using ImageSegmentation
 export get_normal_image,
     get_normal_SVD,
     rgb2lab,
@@ -310,9 +311,15 @@ function rgb2lab!(img::CDNImage{T}) where T
         img[1:3,r,c] = rgb2lab(img[1:3,r,c])
     end
 end
+function resize(labels::Matrix{T}, scale::Float64) where T<:Integer
+    dim = (round(Integer, size(labels, 1) * scale),
+           round(Integer, size(labels, 2) * scale))
+    return round.(Integer, imresize(labels, dim))
+end
 function resize(img::CDNImage, scale::Float64)
-    dim = (round(Integer, size(distances(img), 2) * scale),
-           round(Integer, size(distances(img), 3) * scale))
+    D = distances(img)
+    dim = (round(Integer, size(D, 2) * scale),
+           round(Integer, size(D, 3) * scale))
     RGB = Array(channelview(imresize(colors(img), dim)))
     D = imresize(distances(img), (3, dim...))
     N = imresize(normals(img), (3, dim...))
@@ -320,8 +327,9 @@ function resize(img::CDNImage, scale::Float64)
 end
 function resize(img::LabelledCDNImage, scale::Float64)
     resized_img = resize(img.image, scale)
+    resized_labels = resize(labels_map(img.ground_truth), scale)
     return LabelledCDNImage(
         resized_img,
-        img.labels)
+        resized_labels)
 end
  
