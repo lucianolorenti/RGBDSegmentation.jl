@@ -88,7 +88,7 @@ function get_or_insert(d::DBTable, conn, insert_if_not_present=true)
         if insert_if_not_present
             insert(d, conn)
         else
-            throw(Exception("$d not present"))
+            throw("$d not present")
         end
         
     else
