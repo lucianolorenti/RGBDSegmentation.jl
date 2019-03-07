@@ -20,7 +20,16 @@ include("store.jl")
 
 function supervised_metrics(img, segmented_image::ImageSegmentation.SegmentedImage)
     metrics = Dict(
-            "FBoundary" => FBoundary())
+        "FBoundary" => FBoundary(),
+        "Precision" => Precision()
+        "FMeasure" => FMeasure(),
+        "SegmentationCovering" => SegmentationCovering(),
+        "VariationOfInformation" => VariationOfInformation(),
+        "RandIndex" => RandIndex(),
+        "FMeasureRegions" => FMeasureRegions(),
+        "PRObjectsAndParts" => PRObjectsAndParts(),
+        "BoundaryDisplacementError" =>  BoundaryDisplacementError()
+    )
     result = Dict()
     for metric_name in sort(collect(keys(metrics)))
         result[metric_name] = ImageSegmentationEvaluation.evaluate(
