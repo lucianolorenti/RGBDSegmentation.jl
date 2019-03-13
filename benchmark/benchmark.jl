@@ -199,12 +199,15 @@ function parse_commandline()
              :action=>:command),
         "evaluate",
         Dict(:help=>"Evaluate segmented image",
-         :action=>:command)
+             :action=>:command),
+        "summarize",
+        Dict(:help=>"Summarize metrics",
+            :action=>:command)
     )
-                  
     return parse_args(ARGS, s)
 end
-
+function summarize(config)
+end
 function main()
     args = parse_commandline()
     config = YAML.load(open(args["config"]))
@@ -212,6 +215,8 @@ function main()
         segment(config)
     elseif args["%COMMAND%"] == "evaluate"
         evaluate(config)
+    elseif args["%COMMAND%"] == "summarize"
+        summarize(config)
     end
 end
 main()
