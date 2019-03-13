@@ -116,6 +116,9 @@ function get(d::T, conn; exclude::Array{Symbol}=Symbol[])  where T<:DBTable
     """
     @info sql
     data = fetch!(NamedTuple, execute(conn, sql))
+    if isempty(data[:id])
+        throw("Element not found")
+    end
     params = Dict(k=>julia_value(first(data[k]), fieldtype(T, k)) for k in keys(data))
     d = T(;params...)
     return d
