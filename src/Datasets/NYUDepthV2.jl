@@ -102,7 +102,7 @@ function get_image(ds::NYUDataset, i::Integer; compute_normals=true)
     D = D[margin:end-margin, margin:end-margin, :];
     N = N[margin:end-margin, margin:end-margin,:];
     S = read(f[3])
-    S = convert.(Int64, S[margin:end-margin, margin:end-margin]);
+    S = convert.(Integer, S[margin:end-margin, margin:end-margin] .+ 1);
     return LabelledCDNImage(CDNImage(RGB,D,N),S)
 end
 

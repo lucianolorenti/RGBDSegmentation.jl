@@ -12,6 +12,10 @@ psql_value(a::T) where T<:Integer = string(a)
 psql_value(a::DBTable) = a.id
 psql_value(a::Dict) = "'$(JSON.json(a))'"
 
+
+julia_value(a::String, b::Type{Dict}) = JSON.parse(a)
+julia_value(a, b) = a
+
 function table_name(d::Type)
     return lowercase(string(d))
 end
@@ -73,6 +77,20 @@ function insert_sql(d)
         RETURNING id;
     """
 end
+function update(d::DBTable, conn)
+    fields = [name for name in fieldnames(typeof(d))
+              if name != :id]
+    values = [psql_value(getfield(d,field)) for field in fields]
+    kv_list = join([string(field, "=", value) for (field, value) in zip(fields, values)], ", ")
+    sql = """
+        UPDATE $(table_name(d))
+        SET $(kv_list)
+        WHERE
+            id = $(d.id)
+    """
+    @info(sql)
+    execute(conn, sql)
+end
 function insert(d::DBTable, conn)
     sql = insert_sql(d)
     @info sql
@@ -81,18 +99,33 @@ function insert(d::DBTable, conn)
     d.id = data.id[1]
     return d
 end
-get(d::DBTable, conn) = get_or_insert(d, conn, false)
-function get_or_insert(d::DBTable, conn, insert_if_not_present=true)
+
+function get(d::T, conn; exclude::Array{Symbol}=Symbol[])  where T<:DBTable
+    fields = [name for name in fieldnames(typeof(d))
+              if (name != :id) && !(name in exclude)]
+    values = [psql_value(getfield(d,field)) for field in fields]
+    conditions = [join(field_value, " = ") for field_value in
+                 zip(fields, values)]
+    sql = """
+        SELECT 
+            * 
+        FROM 
+            $(table_name(d))
+        WHERE
+            $(join(conditions, " AND "))
+    """
+    @info sql
+    data = fetch!(NamedTuple, execute(conn, sql))
+    params = Dict(k=>julia_value(first(data[k]), fieldtype(T, k)) for k in keys(data))
+    d = T(;params...)
+    return d
+end
+function get_or_insert(d::DBTable, conn)
     id = get_id(d, conn)
     if id == nothing
-        if insert_if_not_present
-            insert(d, conn)
-        else
-            throw(Exception("$d not present"))
-        end
-        
+        insert(d, conn)
+        return d
     else
-        d.id = id
+        return get(d, conn)
     end
-    return d
 end

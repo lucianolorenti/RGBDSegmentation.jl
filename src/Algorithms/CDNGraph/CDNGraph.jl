@@ -4,8 +4,7 @@ module CDNGraph
 export config
 import RGBDSegmentation:
     CDNImage,
-    clusterize,
-    CDNSegmentedImage
+    clusterize
 import ImageSegmentation:
     felzenszwalb,
     ImageEdge,
