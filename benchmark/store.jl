@@ -24,6 +24,21 @@ mutable struct SegmentedImage <: DBTable
     algorithm::Union{Algorithm, Integer}
     metrics::Dict
 end
+function SegmentedImage(;
+                        id::Union{Integer, Nothing}=nothing,
+                        dataset::String="",
+                        image::Integer=0,
+                        file_path::String="",
+                        algorithm::Union{Algorithm, Integer}=-1,
+                        metrics::Dict=Dict())
+    return SegmentedImage(
+        id,
+        dataset,
+        image,
+        file_path,
+        algorithm,
+        metrics)
+end
 function save(segmented_image::SegmentedImage, img, segments, conn)
     insert(segmented_image, conn)
     img = map(i->segment_mean(segments, i), labels_map(segments))
@@ -35,31 +50,19 @@ function save(segmented_image::SegmentedImage, img, segments, conn)
     save(string(segmented_image.file_path, ".png"),
          colorview(RGB, img))
     @info("Checking that the file can be read")
-    s = load(string(segmented_image.file_path, ".jld"))
-
- 
+    s = load(string(segmented_image.file_path, ".jld")) 
+end
+function save(segmented_image::SegmentedImage, conn)
+    update(segmented_image, conn)
 end
 function load(s::SegmentedImage)
     file_path = string(s.file_path, ".jld")
     @info("Opening file $file_path")
     loaded_file = load(file_path)
+    @info("Loaded")
     return loaded_file["segments"]
 end
-function SegmentedImage(;
-                        id::Union{Integer, Nothing}=nothing,
-                        dataset::String="",
-                        image::Integer=0,
-                        file_path::String="",
-                        algorithm::Union{Algorithm, Integer}=-1,
-                        metrics::Dict=Dict())
-    return SegmentedImage(
-        nothing,
-        dataset,
-        image,
-        file_path,
-        algorithm,
-        metrics)
-end
+
 mutable struct Result <: DBTable
     id::Union{Integer, Nothing}
     s::Union{SegmentedImage, Integer}

@@ -20,15 +20,25 @@ include("store.jl")
 
 function supervised_metrics(img, segmented_image::ImageSegmentation.SegmentedImage)
     metrics = Dict(
-            "FBoundary" => FBoundary())
+        "FBoundary" => FBoundary(),
+        "Precision" => Precision(),
+        "FMeasure" => FMeasure(),
+        "SegmentationCovering" => SegmentationCovering(),
+        "VariationOfInformation" => VariationOfInformation(),
+        "RandIndex" => RandIndex(),
+        "FMeasureRegions" => FMeasureRegions(),
+        "PRObjectsAndParts" => PRObjectsAndParts(),
+        "BoundaryDisplacementError" =>  BoundaryDisplacementError()
+    )
     result = Dict()
     for metric_name in sort(collect(keys(metrics)))
+        @info("Computing $metric_name")
         result[metric_name] = ImageSegmentationEvaluation.evaluate(
             metrics[metric_name],
             segmented_image,
             img.ground_truth)
     end
-
+    return result
 end
 function unsupervised_metrics(img, segmented_image::ImageSegmentation.SegmentedImage)
     default_params = Dict("ECW" => Dict(
@@ -59,6 +69,7 @@ function unsupervised_metrics(img, segmented_image::ImageSegmentation.SegmentedI
     
     result = Dict()
     for metric_name in sort(collect(keys(metrics_color)))
+        @info("Computing $metric_name")
         result[metric_name] = ImageSegmentationEvaluation.evaluate(
             metrics_color[metric_name],
             RGB_img,
@@ -66,6 +77,7 @@ function unsupervised_metrics(img, segmented_image::ImageSegmentation.SegmentedI
     end
     
     for metric_name in sort(collect(keys(metrics_color_distance)))
+        @info("Computing $metric_name")
         result[metric_name] = ImageSegmentationEvaluation.evaluate(
             metrics_color_distance[metric_name],
             RGB_img,
@@ -104,24 +116,28 @@ function segment_image(dataset, i, algorithms, config)
             @info("Segmentation already stored")
             continue
         end
-        if image == nothing
-            @info "Loading image $i"
-            image = dataset[i]
-            @info("Resizing image to 50%")
-            image = resize(image, image_scale)
+        if !isfile(string(segmented_image.file_path, ".jld"))
+            if image == nothing
+                @info "Loading image $i"
+                image = dataset[i]
+                @info("Resizing image to 50%")
+                image = resize(image, image_scale)
+            end
+            @info("Segmenting image $i with algorithm $algorithm")
+            time = @elapsed (
+                segments = clusterize(
+                    algorithm_cfg,
+                    image.image,
+                    K))
+            segmented_image.metrics["elapsed"] = time
+            save(segmented_image,
+                 image,
+                 segments,
+                 conn)
+        else
+            @info("Inserting already segmented image")
+            insert(segmented_image, conn) 
         end
-        @info("Segmenting image $i with algorithm $algorithm")
-        time = @elapsed (
-            segments = clusterize(
-                algorithm_cfg,
-                image.image,
-                K)
-        )
-        segmented_image.metrics["elapsed"] = time
-        save(segmented_image,
-             image,
-             segments,
-             conn)
     end
         
 end
@@ -140,52 +156,74 @@ function segment(config)
              1:length(dataset),
              ntasks=4)
 end
+function evaluate_image(dataset, i, algorithms, config)
+    image = nothing
+    segmented_image = nothing
+    K = config["number_of_segments"]
+    data_path = config["data_path"]
+    image_scale = config["image_scale"]
+
+    for algo_name in keys(algorithms)
+        algorithm_cfg = algorithms[algo_name]
+        algorithm = get(
+            Algorithm(
+                name=algo_name,
+                params=typedict(algorithm_cfg)),
+            conn)
+        
+        base_filename = filename(dataset, i)
+        file_path = joinpath(data_path, algo_name)
+        mkpath(file_path)
+        file_path = joinpath(file_path, base_filename)
+        segmented_image_db = get(
+            SegmentedImage(
+                dataset=name(dataset),
+                image=i,
+                file_path=file_path,
+                algorithm=algorithm),
+                conn,
+            exclude=[:metrics])
+        if (!isempty(segmented_image_db.metrics))
+            continue
+        end
+        try
+            
+            if image == nothing
+                @info "Loading image $i"
+                image = dataset[i]
+                @info("Resizing image to 50%")
+                image = resize(image, image_scale)
+            end
+            segmented_image = load(segmented_image_db)
+            results = unsupervised_metrics(image, segmented_image)
+            merge!(results, supervised_metrics(image, segmented_image))
+            segmented_image_db.metrics = results
+            save(segmented_image_db, conn)
+        catch e
+            @warn(e)
+        end
+        
+    end
+    GC.gc()
+end
 function evaluate(config)
     dataset = NYUDataset()
     algorithms = Dict(
         "JCSA"=> (
             JCSA.Config(;
                 dict_to_params(config["JCSA"])...)),
-        "GCF" => GCF.Config(;
-            dict_to_params(config["GCF"])...),
+        #"GCF" => GCF.Config(;
+        #    dict_to_params(config["GCF"])...),
         "CDNGraph" =>  CDNGraph.Config(;
             dict_to_params(config["CDNGraph"])...)
     )
-    K = config["number_of_segments"]
-    data_path = config["data_path"]
-    image_scale = config["image_scale"]
-    for i=1:length(dataset)
-        image = nothing
-        segmented_image = nothing
-        for algo_name in keys(algorithms)
-            algorithm_cfg = algorithms[algo_name]
-            algorithm = get(
-                Algorithm(
-                    name=algo_name,
-                    params=typedict(algorithm_cfg)),
-                conn)
+    #for i=1:length(dataset)
+    #    evaluate_image(dataset, i, algorithms, config)
+    #end
+    asyncmap(i->evaluate_image(dataset, i, algorithms, config),
+             1:length(dataset),
+             ntasks=4)
 
-            base_filename = filename(dataset, i)
-            file_path = joinpath(data_path, algo_name)
-            mkpath(file_path)
-            file_path = joinpath(file_path, base_filename)
-            segmented_image_db = SegmentedImage(
-                dataset=name(dataset),
-                image=i,
-                file_path=file_path,
-                algorithm=algorithm)
-            if image == nothing
-                @info "Loading image $i"
-                image = dataset[i]
-                @info("Resizing image to 50%")
-                image = resize(image, image_scale)
-                segmented_image = load(segmented_image_db)
-            end
-            #unsupervised_metrics(image, load(segmented_image))
-            supervised_metrics(image, segmented_image)
-            
-        end
-    end
 end
 function parse_commandline()
     s = ArgParseSettings()

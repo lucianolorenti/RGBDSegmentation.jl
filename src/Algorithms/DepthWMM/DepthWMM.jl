@@ -6,12 +6,12 @@ Tesis Doctoral: https://tel.archives-ouvertes.fr/tel-01160770v2/document
 module DepthWMM
 export WatsonMixtureModel,
       clusterize
+import Distributions: concentration
 
 include("DiametricalClustering.jl")
 include("../JCSA/ExponentialDistributions.jl")
 #using Distributions
 using Clustering
-
 mutable struct WatsonMixtureModel
     dim::Integer
     weights::Vector{Float64}
